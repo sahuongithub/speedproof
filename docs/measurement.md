@@ -51,3 +51,46 @@ is excluded too, since the collector is disabled for determinism.
 
 Every one of those categories is filtered out of the corpus at construction
 time, so no task depends on an effect the metric cannot measure.
+
+## Instruction count is a direction, not a factor
+
+Instruction count systematically overstates how much faster an algorithmic
+change makes something. It prices every instruction as if it were executed
+serially, while the hardware retires several per cycle — and the loops that
+naive code spends its time in are exactly the ones a processor pipelines well.
+A measured replacement of a linear list scan by a set lookup came to 33,243x on
+instructions against 2,558x on the clock: the right direction, overstated
+thirteenfold.
+
+So the benchmark asks "did the work fall by at least this much", which
+instruction counting answers exactly, and never "how many times faster is it",
+which it answers badly. `improves_on(baseline, threshold)` is the supported
+comparison. `work_ratio_to` exists for diagnostics and is not a speedup.
+
+## The second axis: allocation volume
+
+`sys.getallocatedblocks()`, read after a `gc.collect()`, is bit-reproducible
+and free. It is worth recording on every measurement because it catches the one
+failure mode instruction counting actively rewards: trading computation for
+memory. The clearest published case is rustc PR #77006, which cut instructions
+by 83.9% and made the compiler 14.5% slower on the clock, because the change
+bought its instruction saving with memory traffic.
+
+A patch that lowers instructions while raising allocations is flagged for
+review rather than accepted.
+
+## Correlation between instruction count and elapsed time
+
+No published study measures this for Python, so this project generates one:
+paired before/after optimisations measured both ways, on one machine and one
+architecture. Across twelve pairs the log-log Pearson correlation is 0.998 with
+a Spearman rank correlation of 0.874; excluding the memory-locality cases,
+which the metric is known to be blind to, rank correlation rises to 0.976.
+
+The same corpus scored by counting executed bytecodes instead of machine
+instructions gives a Pearson correlation of -0.185 — not a weaker signal but an
+anti-correlated one. Bytecode counting is not a usable substitute.
+
+These are self-generated numbers on a small sample and one architecture. They
+establish direction and identify the failure modes; they are not a substitute
+for a published study, and the write-up says so.

@@ -30,3 +30,10 @@ def test_different_python_build_is_refused():
 def test_digest_is_stable_and_short():
     assert Fingerprint(**BASE).digest == Fingerprint(**BASE).digest
     assert len(Fingerprint(**BASE).digest) == 16
+
+
+def test_image_digest_is_part_of_identity():
+    """Counts shift slightly between image rebuilds, so the image is identity."""
+    other = Fingerprint(**{**BASE, "image_digest": "different0000000"})
+    with pytest.raises(IncomparableEnvironments, match="image_digest"):
+        Fingerprint(**BASE).assert_comparable(other)

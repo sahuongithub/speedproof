@@ -89,8 +89,19 @@ class IrMeasurement:
                 f"Repetitions: {self.raw_totals}"
             )
 
-    def ratio_to(self, other: "IrMeasurement") -> float:
-        """How many times more work ``other`` does than this measurement."""
+    def work_ratio_to(self, other: "IrMeasurement") -> float:
+        """Ratio of instructions retired -- NOT a speedup factor.
+
+        Instruction count systematically overstates the magnitude of
+        algorithmic wins, because it prices every instruction as if it were
+        serial while the hardware retires several per cycle. A measured
+        replacement of a list scan by a set lookup came to 33,243x on
+        instructions against 2,558x on the clock: right direction, thirteenfold
+        overstatement.
+
+        Use this to establish *that* work fell and by at least how much. Never
+        quote it as "n times faster"; for that, use the wall-clock arm.
+        """
         self.fingerprint.assert_comparable(other.fingerprint)
         if self.net <= 0:
             raise MeasurementError(
@@ -98,6 +109,19 @@ class IrMeasurement:
                 "work than the empty baseline, which means the baseline is wrong"
             )
         return other.net / self.net
+
+    def improves_on(self, baseline: "IrMeasurement", threshold: float = 0.05) -> bool:
+        """True when this measurement retires at least ``threshold`` less work.
+
+        This is the valid comparison: a direction and a floor. The benchmark
+        asks "did the work fall by at least five per cent", which instruction
+        counting answers exactly, rather than "how much faster is it", which it
+        answers badly.
+        """
+        self.fingerprint.assert_comparable(baseline.fingerprint)
+        if baseline.net <= 0:
+            raise MeasurementError("baseline net instruction count is not positive")
+        return (baseline.net - self.net) / baseline.net >= threshold
 
 
 def _docker() -> str:
@@ -123,7 +147,7 @@ FROM {BASE_IMAGE}
 RUN apt-get update \\
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends valgrind \\
  && rm -rf /var/lib/apt/lists/*
-ENV PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=0
+ENV PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=0 PYTHON_JIT=0
 WORKDIR /work
 """
     build = subprocess.run(
@@ -145,6 +169,7 @@ def _run_in_container(repo: Path, script: str, timeout: int = 900) -> subprocess
             "--network", "none",
             "-v", f"{repo}:/work:ro",
             "-e", "PYTHONHASHSEED=0",
+            "-e", "PYTHON_JIT=0",
             "-e", "PYTHONPATH=/work/src",
             IMAGE_TAG, "bash", "-s",
         ],

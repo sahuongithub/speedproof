@@ -66,13 +66,25 @@ def _force(value):
 
 
 def main():
-    if len(sys.argv) != 3 or sys.argv[1] not in ("measure", "checksum"):
-        raise SystemExit("usage: inner.py {measure|checksum} <workload.py>")
+    if len(sys.argv) != 3 or sys.argv[1] not in ("measure", "checksum", "alloc"):
+        raise SystemExit("usage: inner.py {measure|checksum|alloc} <workload.py>")
     mode, path = sys.argv[1], sys.argv[2]
 
     # The collector's scheduling would otherwise make the instruction count
     # depend on allocation history rather than on the work performed.
     gc.disable()
+
+    if mode == "alloc":
+        # Allocation volume is the second axis, and it is exactly the thing
+        # instruction count rewards and wall clock punishes: a patch that
+        # trades compute for memory looks like a large win on Ir alone.
+        # gc.collect() before the reading is required, or the baseline drifts.
+        gc.collect()
+        before = sys.getallocatedblocks()
+        result = _load_and_run(path)
+        _force(result)
+        sys.stdout.write(str(sys.getallocatedblocks() - before) + "\n")
+        return 0
 
     result = _load_and_run(path)
 
@@ -80,7 +92,7 @@ def main():
         _force(result)
         return 0
 
-    # Only the checksum path pays for hashlib and the canonical encoder.
+    # Only the unmeasured path pays for hashlib and the canonical encoder.
     from speedproof.verifyperf.canon import checksum
 
     sys.stdout.write(checksum(result) + "\n")
