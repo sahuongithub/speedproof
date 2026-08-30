@@ -191,6 +191,21 @@ module, construct the same object and run the same `setup()`; only one of them
 calls the benchmark. Everything the import does is common to both and subtracts
 away exactly, leaving the call being studied.
 
+Measured, on the same benchmark and the same task:
+
+| | Instructions |
+| --- | ---: |
+| Workload total | 27,192,889,049 |
+| Paired baseline (same imports, no call) | 27,169,550,349 |
+| **Net, the lexing itself** | **23,338,700** |
+| Net against an empty baseline instead | 27,142,094,479 |
+
+The operation under study was **0.086%** of what the empty baseline reported.
+Everything else was the module building its inputs. Both figures are
+bit-identical across repetitions; the difference between them is not precision
+but relevance, and no amount of reproducibility rescues a number that is
+measuring the wrong thing.
+
 This is the same principle as the thin wrapper, one level up. There, the
 runner's own imports had to be small because their *variance* landed on the net
 figure. Here, the benchmark module's imports can be arbitrarily large so long
