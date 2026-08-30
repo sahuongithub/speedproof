@@ -51,3 +51,26 @@ def test_architectures_are_never_silently_comparable():
     assert arm.digest != x86.digest
     with pytest.raises(IncomparableEnvironments):
         arm.assert_comparable(x86)
+
+
+def test_ensure_image_names_the_image_on_every_path():
+    """A builder that returns the tag only when it builds is a trap.
+
+    Callers pass the return value straight back in as ``image=``; returning
+    None for an image that already exists silently selects the default one,
+    which is how a project's dependencies went missing from a measurement.
+    """
+    import inspect
+
+    from speedproof.verifyperf import callgrind
+
+    source = inspect.getsource(callgrind.ensure_image)
+    returns = [
+        line.strip()
+        for line in source.splitlines()
+        if line.strip().startswith("return")
+    ]
+    assert returns, "ensure_image should return the tag it ensured"
+    assert all(r != "return" for r in returns), (
+        f"ensure_image has a bare return: {returns}"
+    )

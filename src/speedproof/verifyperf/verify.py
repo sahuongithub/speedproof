@@ -21,6 +21,7 @@ from speedproof.verifyperf.callgrind import (
     IrMeasurement,
     MeasurementError,
     _docker,
+    _install_harness_script,
     ensure_image,
     image_tag,
     measure,
@@ -197,10 +198,10 @@ def _capture(
     script = f"""
 set -e
 cd /tmp
-cp -r /work/src /tmp/src
+{_install_harness_script()}
 cp /work/{rel} /tmp/workload.py
-export PYTHONPATH=/tmp/src
-python3 /tmp/src/speedproof/verifyperf/inner.py {mode} /tmp/workload.py
+export PYTHONPATH=/tmp/harness:/work
+python3 /tmp/harness/speedproof/verifyperf/inner.py {mode} /tmp/workload.py
 """
     proc = subprocess.run(
         [_docker(), "run", "--rm", "-i", "--network", "none"]

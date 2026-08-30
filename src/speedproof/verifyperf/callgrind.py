@@ -29,6 +29,30 @@ from pathlib import Path
 
 from speedproof.verifyperf.fingerprint import Fingerprint
 
+#: The runner and the encoder are shipped into the container as text rather
+#: than mounted. The harness then imposes nothing on the layout of the tree
+#: being measured, which matters because that tree is somebody else's project
+#: and has no reason to contain this one.
+_HARNESS_MODULES = ("inner.py", "canon.py")
+
+
+def _harness_source() -> dict[str, str]:
+    here = Path(__file__).resolve().parent
+    return {name: (here / name).read_text() for name in _HARNESS_MODULES}
+
+
+def _install_harness_script() -> str:
+    """Shell fragment that writes the runner into the container."""
+    lines = ["mkdir -p /tmp/harness/speedproof/verifyperf",
+             "touch /tmp/harness/speedproof/__init__.py",
+             "touch /tmp/harness/speedproof/verifyperf/__init__.py"]
+    for name, text in _harness_source().items():
+        marker = f"SPEEDPROOF_{name.replace('.', '_').upper()}"
+        lines.append(f"cat > /tmp/harness/speedproof/verifyperf/{name} <<'{marker}'")
+        lines.append(text.rstrip("\n"))
+        lines.append(marker)
+    return "\n".join(lines)
+
 # python:3.12-slim, pinned.  The tag moves; the digest does not, and a moving
 # base image would silently change every count in the corpus.
 BASE_IMAGE = (
@@ -148,24 +172,39 @@ def image_tag(platform: str | None = None) -> str:
     return f"{IMAGE_TAG}-{platform.split('/')[-1]}"
 
 
-def ensure_image(rebuild: bool = False, platform: str | None = None) -> None:
-    """Build the measurement image if it is not already present."""
+def ensure_image(
+    rebuild: bool = False,
+    platform: str | None = None,
+    dependencies: tuple[str, ...] = (),
+    tag: str | None = None,
+) -> str:
+    """Build the measurement image if it is not already present.
+
+    ``dependencies`` are installed into the image so that a project being
+    measured can import what it needs. They are pinned by the caller, because
+    an unpinned dependency would change instruction counts without any change
+    to the code under test.
+    """
     docker = _docker()
-    tag = image_tag(platform)
+    tag = tag or image_tag(platform)
     if not rebuild:
         probe = subprocess.run(
             [docker, "image", "inspect", tag],
             capture_output=True,
         )
         if probe.returncode == 0:
-            return
+            return tag
 
+    install = ""
+    if dependencies:
+        quoted = " ".join(f"'{d}'" for d in dependencies)
+        install = f"RUN pip install --no-cache-dir {quoted}\n"
     dockerfile = f"""
 FROM {BASE_IMAGE}
 RUN apt-get update \\
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends valgrind \\
  && rm -rf /var/lib/apt/lists/*
-ENV PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=0 PYTHON_JIT=0
+{install}ENV PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=0 PYTHON_JIT=0
 WORKDIR /work
 """
     build = subprocess.run(
@@ -183,6 +222,7 @@ WORKDIR /work
 
     if platform is not None:
         _assert_image_architecture(tag, platform)
+    return tag
 
 
 def _assert_image_architecture(tag: str, platform: str) -> None:
@@ -211,7 +251,11 @@ def _assert_image_architecture(tag: str, platform: str) -> None:
 
 
 def _run_in_container(
-    repo: Path, script: str, timeout: int = 900, platform: str | None = None
+    repo: Path,
+    script: str,
+    timeout: int = 900,
+    platform: str | None = None,
+    image: str | None = None,
 ) -> subprocess.CompletedProcess:
     return subprocess.run(
         [_docker(), "run", "--rm", "-i", "--network", "none"]
@@ -221,7 +265,7 @@ def _run_in_container(
             "-e", "PYTHONHASHSEED=0",
             "-e", "PYTHON_JIT=0",
             "-e", "PYTHONPATH=/work/src",
-            image_tag(platform), "bash", "-s",
+            image or image_tag(platform), "bash", "-s",
         ],
         input=script.encode(),
         capture_output=True,
@@ -229,9 +273,12 @@ def _run_in_container(
     )
 
 
-def probe_environment(repo: Path, platform: str | None = None) -> Fingerprint:
+def probe_environment(
+    repo: Path, platform: str | None = None, image: str | None = None
+) -> Fingerprint:
     """Read the identity of the measurement environment from inside it."""
-    ensure_image(platform=platform)
+    if image is None:
+        ensure_image(platform=platform)
     script = r"""
 set -e
 python3 - <<'PY'
@@ -244,7 +291,7 @@ print(json.dumps({
 PY
 valgrind --version
 """
-    proc = _run_in_container(repo, script, platform=platform)
+    proc = _run_in_container(repo, script, platform=platform, image=image)
     if proc.returncode != 0:
         raise MeasurementError(proc.stderr.decode(errors="replace")[-2000:])
 
@@ -253,7 +300,7 @@ valgrind --version
     match = _VG_VERSION.search(lines[-1])
     return Fingerprint(
         arch=info["arch"],
-        image_digest=BASE_IMAGE.split(":")[-1][:16],
+        image_digest=(image or BASE_IMAGE).split(":")[-1][:16],
         python_version=info["python_version"],
         valgrind_version=match.group(1) if match else "unknown",
         libc=info["libc"],
@@ -266,6 +313,7 @@ def measure(
     repetitions: int = 3,
     fingerprint: Fingerprint | None = None,
     platform: str | None = None,
+    image: str | None = None,
 ) -> IrMeasurement:
     """Count the instructions ``workload`` executes, net of interpreter startup.
 
@@ -273,36 +321,37 @@ def measure(
     ``run()``.  It is executed inside the container; nothing it does can reach
     the counter, which lives outside the interpreter entirely.
     """
-    ensure_image(platform=platform)
-    fingerprint = fingerprint or probe_environment(repo, platform)
+    if image is None:
+        ensure_image(platform=platform)
+    fingerprint = fingerprint or probe_environment(repo, platform, image)
     rel = workload.relative_to(repo) if workload.is_absolute() else workload
 
     script = f"""
 set -e
 cd /tmp
-cp -r /work/src /tmp/src
+{_install_harness_script()}
 cat > /tmp/noop.py <<'NOOP_EOF'
 def run():
     return None
 NOOP_EOF
 cp /work/{rel} /tmp/workload.py
-export PYTHONPATH=/tmp/src
+export PYTHONPATH=/tmp/harness:/work
 run() {{
   valgrind --tool=callgrind --cache-sim=no --branch-sim=no \\
            --callgrind-out-file=/tmp/cg.out \\
-           python3 /tmp/src/speedproof/verifyperf/inner.py measure "$1" >/dev/null 2>/tmp/vg.log
+           python3 /tmp/harness/speedproof/verifyperf/inner.py measure "$1" >/dev/null 2>/tmp/vg.log
   grep -m1 '^summary:' /tmp/cg.out | awk '{{print $2}}'
 }}
 # Warm the bytecode cache for both scripts; the first execution of any Python
 # file costs an extra compilation that would otherwise land in run one.
-python3 /tmp/src/speedproof/verifyperf/inner.py measure /tmp/noop.py     >/dev/null || \
+python3 /tmp/harness/speedproof/verifyperf/inner.py measure /tmp/noop.py     >/dev/null || \
   {{ echo "warm-up of the empty baseline failed" >&2; exit 3; }}
-python3 /tmp/src/speedproof/verifyperf/inner.py measure /tmp/workload.py >/dev/null || \
+python3 /tmp/harness/speedproof/verifyperf/inner.py measure /tmp/workload.py >/dev/null || \
   {{ echo "warm-up of the workload failed" >&2; exit 4; }}
 echo "BASELINE $(run /tmp/noop.py)"
 for _ in $(seq {repetitions}); do echo "TOTAL $(run /tmp/workload.py)"; done
 """
-    proc = _run_in_container(repo, script, platform=platform)
+    proc = _run_in_container(repo, script, platform=platform, image=image)
     if proc.returncode != 0:
         raise MeasurementError(
             "measurement failed inside the container:\n"
