@@ -135,3 +135,38 @@ pyperf. It now recognises asv, pytest-benchmark and pyperf.
 Both are the same mistake in different clothes, and it is the mistake this
 project is about: a gate tuned to reject will reject things it should not, and
 the only way to know is to check its refusals as carefully as its acceptances.
+
+## Coverage has to measure the call, not the import
+
+The selector needs to know what each workload reaches. Collecting that turns
+out to have the same trap as measuring instructions did, one level up.
+
+The obvious implementation starts coverage, imports the benchmark module,
+constructs the class and calls the method. It produces a map that is technically
+correct and useless for discrimination, because everything a module does when
+it is imported gets attributed to whichever workload happened to trigger it —
+and in a suite where every module imports the same package, that is nearly
+everything.
+
+Measured on four xdsl benchmarks:
+
+| | Coverage started before the import | Coverage started after |
+| --- | ---: | ---: |
+| Lines shared by all four workloads | 6,652 | **0** |
+| Unique to `Lexer.time_constant_100` | 4 | 4 |
+| Unique to `Parser.time_constant_100` | 511 | **762** |
+
+Before the change the four workloads agreed on 6,652 of roughly 6,700 lines and
+differed by as few as four. After it they share nothing, and each one's coverage
+is the code it actually exercises: 88 lines for the lexer, 854 for the parser,
+309 for the printer.
+
+The consequence is that a patch to code which only runs at import is invisible
+to this map. That is deliberate rather than a gap — the selector escalates such
+patches to the whole suite by a separate rule, which is both simpler and safer
+than trying to see them in coverage that cannot attribute them.
+
+Coverage is collected per workload in its own process, and on the base tree
+only. Sharing a process lets an earlier workload's imports make a later one
+look as though it touches nothing, and the patched tree may not contain the
+lines the patch removed, which would misalign the diff's line numbers.
