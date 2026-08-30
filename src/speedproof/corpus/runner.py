@@ -23,6 +23,7 @@ from pathlib import Path
 from speedproof.corpus.checkout import CheckoutError, release
 from speedproof.corpus.task import Task
 from speedproof.corpus.variants import (
+    GroundTruthFailed,
     NotPreparable,
     computes_same_answer,
     measure_tree,
@@ -46,6 +47,14 @@ class Outcome(str, Enum):
 
     NOT_EQUIVALENT = "not_equivalent"
     """The two trees compute different answers. Interesting, and excluded."""
+
+    GROUND_TRUTH_FAILED = "ground_truth_failed"
+    """The maintainer's own patch does not pass the gate on this workload.
+
+    The task is broken rather than hard: no arm could be judged fairly on it,
+    since the reference answer itself does not satisfy the check. Counted and
+    reported rather than quietly dropped.
+    """
 
     NO_WORKLOAD = "no_workload"
     """No workload in the project's suite reaches the changed lines."""
@@ -161,6 +170,10 @@ def run_task(
     except CheckoutError as exc:
         result.outcome = Outcome.PATCH_FAILED
         result.detail = str(exc).splitlines()[0][:100]
+        return result
+    except GroundTruthFailed as exc:
+        result.outcome = Outcome.GROUND_TRUTH_FAILED
+        result.detail = str(exc)[:120]
         return result
     except NotPreparable as exc:
         result.outcome = Outcome(exc.outcome)

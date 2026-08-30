@@ -83,6 +83,18 @@ class Prepared:
     changed_files: tuple[str, ...] = field(default=())
 
 
+class GroundTruthFailed(Exception):
+    """Raised when the maintainer's own patch does not pass the gate.
+
+    A task whose ground truth fails is broken, not hard, and leaving it in
+    would penalise every arm for the harness rather than for the work. The
+    surveyed literature found this at meaningful rates -- 11.3% of problems in
+    one benchmark had test suites that would not consistently pass their own
+    reference solution -- so it is checked rather than assumed, and the count
+    of tasks dropped this way is reported.
+    """
+
+
 class NotPreparable(Exception):
     """Raised when a task cannot be brought to the point of measurement.
 
@@ -157,6 +169,25 @@ def prepare(
         # Unknown, not equal. A workload that returns nothing comparable is
         # handled by the caller rather than silently treated as agreeing.
         pass
+
+    # The maintainer's patch must pass the same gate every arm is held to.
+    # Checked here, before any arm is asked to do anything, so a broken task
+    # costs one measurement rather than a whole evaluation.
+    if reference is not None:
+        try:
+            human_digest = _capture(trees.patched, workload, "checksum", platform)
+        except Exception as exc:
+            raise NotPreparable(
+                "unmeasurable", f"the expert patch would not run: {exc}"
+            ) from exc
+        from speedproof.verifyperf.canon import checksum as _checksum
+
+        if human_digest != reference and human_digest != _checksum(None):
+            raise GroundTruthFailed(
+                "the maintainer's own patch does not compute what the base "
+                "tree computes on this workload, so the workload cannot judge "
+                "any arm on this task"
+            )
 
     profile = collect_profile(trees.base, workload, image=image, platform=platform)
 

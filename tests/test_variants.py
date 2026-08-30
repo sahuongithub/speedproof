@@ -59,3 +59,29 @@ def test_unknown_equivalence_is_never_reported_as_agreement():
     source = inspect.getsource(variants.computes_same_answer)
     assert "return None" in source
     assert "checksum(None)" in source
+
+
+def test_a_task_whose_ground_truth_fails_is_broken_not_hard():
+    """Leaving it in would penalise every arm for the harness rather than for
+    the work. One surveyed benchmark had 11.3% of problems whose test suites
+    would not consistently pass their own reference solution."""
+    from speedproof.corpus.variants import GroundTruthFailed
+
+    assert issubclass(GroundTruthFailed, Exception)
+
+
+def test_the_expert_patch_is_checked_before_any_arm_runs():
+    """So a broken task costs one measurement rather than a whole evaluation."""
+    import inspect
+
+    from speedproof.corpus import variants
+
+    source = inspect.getsource(variants.prepare)
+    assert source.index("GroundTruthFailed") < source.index("collect_profile(")
+
+
+def test_it_is_counted_rather_than_quietly_dropped():
+    from speedproof.corpus.runner import Outcome
+
+    assert Outcome.GROUND_TRUTH_FAILED.value == "ground_truth_failed"
+    assert not Outcome.GROUND_TRUTH_FAILED.usable

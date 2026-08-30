@@ -33,6 +33,32 @@ from speedproof.speedagent.profile import Profile
 from speedproof.speedagent.workspace import Workspace, WorkspaceError
 
 
+#: The arms, and what each one isolates.
+#:
+#: Four arms cannot answer the question. Comparing a loop that sees a profile
+#: against a single prompt that does not confounds iterating with being told
+#: where the work is, and the two genuinely dissociate: in the surveyed
+#: ablation, giving a non-iterating agent profiler access *lowered* its score,
+#: from 20.6 to 17.6, while the same profile inside a loop raised it to 36.3.
+#:
+#: ``base``              the code as it stood, which every score is relative to
+#: ``human``             the maintainer's own patch, the target
+#: ``one_shot``          one prompt, no profile, no feedback
+#: ``one_shot_profile``  one prompt with the profile, isolating the profile
+#: ``best_of``           several independent one-shots, the best kept
+#: ``agent_no_profile``  the loop with only the measurement fed back
+#: ``agent``             the loop with the profile as well
+ARMS = (
+    "base",
+    "human",
+    "one_shot",
+    "one_shot_profile",
+    "best_of",
+    "agent_no_profile",
+    "agent",
+)
+
+
 @dataclass
 class ArmRun:
     """What one arm achieved on one task, and what it cost to find out."""
@@ -67,9 +93,16 @@ def run_one_shot(
     judge: TaskJudge,
     profile: Profile | None = None,
     ask_model=ask,
+    name: str | None = None,
 ) -> ArmRun:
-    """One prompt, no loop, no feedback. The first baseline the brief allows."""
-    result = ArmRun(arm="one_shot")
+    """One prompt, no loop, no feedback. The first baseline the brief allows.
+
+    Run twice: once without the profile and once with it. The pair isolates
+    what the profile is worth to an agent that cannot iterate, which is not the
+    same as what it is worth inside a loop and has been measured to differ in
+    sign.
+    """
+    result = ArmRun(arm=name or ("one_shot_profile" if profile else "one_shot"))
     target = _target_file(prepared)
     if target is None:
         result.rejected = "the task names no file to change"
@@ -98,7 +131,7 @@ def run_one_shot(
         result.net_ir = verdict.net_ir
         result.rejected = verdict.rejected
         result.trajectory = {
-            "arm": "one_shot",
+            "arm": result.arm,
             "exchanges": [{"round": 1, "prompt": prompt, "reply": reply}],
         }
     return result
@@ -114,7 +147,7 @@ def run_agent(
     ask_model=ask,
 ) -> ArmRun:
     """The loop."""
-    result = ArmRun(arm="agent")
+    result = ArmRun(arm="agent" if use_profile else "agent_no_profile")
     target = _target_file(prepared)
     if target is None:
         result.rejected = "the task names no file to change"

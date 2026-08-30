@@ -59,3 +59,22 @@ def test_only_the_first_changed_file_is_offered():
     an arm not allowed to change a file cannot be credited for changing it."""
     prepared = type("P", (), {"changed_files": ("a.py", "b.py")})()
     assert arms._target_file(prepared) == "a.py"
+
+
+def test_six_arms_are_needed_not_four():
+    """Comparing a loop that sees a profile against a prompt that does not
+    confounds iterating with being told where the work is. The two dissociate:
+    profiler access alone lowered the surveyed score from 20.6 to 17.6, while
+    the same profile inside a loop raised it to 36.3."""
+    assert "one_shot_profile" in arms.ARMS
+    assert "agent_no_profile" in arms.ARMS
+    assert len(arms.ARMS) == 7  # six arms plus the base they are measured from
+
+
+def test_an_arm_names_itself_by_what_it_was_given():
+    """So a result cannot be attributed to the wrong configuration."""
+    source = inspect.getsource(arms.run_one_shot)
+    assert 'one_shot_profile" if profile else "one_shot' in source
+    assert '"agent" if use_profile else "agent_no_profile"' in inspect.getsource(
+        arms.run_agent
+    )
