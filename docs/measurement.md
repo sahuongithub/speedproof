@@ -110,3 +110,25 @@ way on an arm64 host is an arm64 image with a misleading tag, and measuring
 with it would compare an architecture against itself and report perfect
 agreement. The builder now inspects what it actually produced and refuses to
 continue on a mismatch.
+
+## Two ways to exclude interpreter startup
+
+**Baseline subtraction** is the default. Measure the workload, measure an empty
+workload through the identical wrapper, subtract. It needs nothing beyond
+Valgrind, and it is exact whenever the workload is large next to the roughly 49
+million instructions Python spends starting up.
+
+It degrades when the workload is small, because the net figure is then the
+difference between two numbers near fifty million, and a few instructions of
+wrapper jitter become a large fraction of the answer.
+
+**Region counting** is the alternative for that case. The workload marks its own
+region with `speedproof.verifyperf.region.counted()`, and Callgrind is started
+with `--instr-atstart=no` so that only the marked block is counted. Interpreter
+startup never enters the number and the wrapper's size stops mattering. The
+cost is a compiled shim in the image — Callgrind's controls are magic
+instruction sequences rather than a callable library, so they have to be
+wrapped in C and reached through ctypes — which is why this is not the default.
+
+The shim is a no-op outside Valgrind, so a workload written against it runs
+normally during development.
