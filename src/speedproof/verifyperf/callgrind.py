@@ -314,26 +314,50 @@ def measure(
     fingerprint: Fingerprint | None = None,
     platform: str | None = None,
     image: str | None = None,
+    baseline: Path | None = None,
 ) -> IrMeasurement:
-    """Count the instructions ``workload`` executes, net of interpreter startup.
+    """Count the instructions ``workload`` executes, net of a baseline.
 
     ``workload`` is a path relative to ``repo`` naming a file that defines
     ``run()``.  It is executed inside the container; nothing it does can reach
     the counter, which lives outside the interpreter entirely.
+
+    ``baseline`` names a second workload whose cost is subtracted. It defaults
+    to an empty script, which removes interpreter startup and nothing else.
+
+    Passing a *paired* baseline matters more than it sounds. A project's
+    benchmark module often builds its inputs when the module is imported, and
+    that import lands inside the measurement: measuring one xdsl lexer
+    benchmark this way came to 27 billion instructions, almost all of it
+    constructing a 500x500 tensor at class-definition time. Against an empty
+    baseline the import cancels in a subtraction between two huge numbers, but
+    the operation being studied is then a fraction of a per cent of what was
+    measured, and a real optimisation of it would be invisible.
+
+    The paired baseline is the same file with ``run()`` emptied. Everything the
+    module does on import is then common to both sides and subtracts away
+    exactly, leaving the benchmarked call and nothing else.
     """
     if image is None:
         ensure_image(platform=platform)
     fingerprint = fingerprint or probe_environment(repo, platform, image)
     rel = workload.relative_to(repo) if workload.is_absolute() else workload
 
+    if baseline is None:
+        baseline_script = (
+            "cat > /tmp/noop.py <<'NOOP_EOF'\ndef run():\n    return None\nNOOP_EOF"
+        )
+    else:
+        rel_baseline = (
+            baseline.relative_to(repo) if baseline.is_absolute() else baseline
+        )
+        baseline_script = f"cp /work/{rel_baseline} /tmp/noop.py"
+
     script = f"""
 set -e
 cd /tmp
 {_install_harness_script()}
-cat > /tmp/noop.py <<'NOOP_EOF'
-def run():
-    return None
-NOOP_EOF
+{baseline_script}
 cp /work/{rel} /tmp/workload.py
 export PYTHONPATH=/tmp/harness:/work
 run() {{

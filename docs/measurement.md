@@ -169,3 +169,29 @@ The determinism claim also survived contact with shared infrastructure: running
 the entire suite twice on the same runner returned identical counts for every
 case. A noisy machine changes how long the measurement takes and not what it
 reports.
+
+## The baseline has to be paired with the workload
+
+Subtracting an empty script removes interpreter startup. That is the right
+baseline for a workload written for the purpose, and the wrong one for a
+benchmark taken from a project.
+
+A benchmark class under the usual convention builds its inputs when the class
+is defined, so importing the module does the work before the benchmark is ever
+called. Measuring one xdsl lexer benchmark against an empty baseline gave a net
+of **27,142,094,479 instructions**, almost all of which was constructing a
+500x500 tensor at class scope. The number was bit-identical across repetitions
+and across two source trees, so it was perfectly reproducible -- and useless,
+because the operation under study was a fraction of a per cent of it. An
+optimisation that halved the lexer would have moved that total by less than the
+threshold for calling anything a change.
+
+The fix is to generate the workload as a pair. Both files import the same
+module, construct the same object and run the same `setup()`; only one of them
+calls the benchmark. Everything the import does is common to both and subtracts
+away exactly, leaving the call being studied.
+
+This is the same principle as the thin wrapper, one level up. There, the
+runner's own imports had to be small because their *variance* landed on the net
+figure. Here, the benchmark module's imports can be arbitrarily large so long
+as they appear identically on both sides of the subtraction.
