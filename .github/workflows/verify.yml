@@ -33,12 +33,12 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-latest
-          # Free arm64 runners are available to public repositories only.
-          # On a private repository this leg is skipped rather than failing.
           - arch: arm64
             runner: ubuntu-24.04-arm
+    # Free arm64 runners exist for public repositories only, so on a private
+    # repository that leg is skipped rather than left to fail allocation.
+    if: ${{ matrix.arch != 'arm64' || !github.event.repository.private }}
     runs-on: ${{ matrix.runner }}
-    continue-on-error: ${{ matrix.arch == 'arm64' }}
     steps:
       - uses: actions/checkout@v4
 
