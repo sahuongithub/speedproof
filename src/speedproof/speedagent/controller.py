@@ -29,6 +29,7 @@ from speedproof.speedagent.loop import (
     patch_fingerprint,
 )
 from speedproof.speedagent.profile import Profile
+from speedproof.speedagent.trajectory import RoundRecord, TrajectoryRecord
 from speedproof.speedagent.workspace import Workspace, WorkspaceError
 
 
@@ -78,12 +79,18 @@ def run(
     use_profile: bool = True,
     use_history: bool = True,
     ask_model=ask,
+    record: TrajectoryRecord | None = None,
 ) -> Trajectory:
     """Iterate on one file until the controller decides to stop.
 
     ``judge`` takes the workspace and returns a Judgement. It is passed in so
     the loop cannot measure anything itself, and so the ablations can hold
     everything else fixed.
+
+    ``record``, when given, is filled in as the run proceeds rather than
+    assembled from it afterwards. The convention for publishing these requires
+    that, and it is also the only way the record survives a run that ends
+    badly: a reconstruction needs the run to have finished.
     """
     original = workspace.read(target)
     trajectory = Trajectory(task=task, baseline_ir=baseline_ir)
@@ -105,6 +112,14 @@ def run(
         trajectory.exchanges.append(
             {"round": number, "prompt": prompt, "reply": reply}
         )
+        entry = RoundRecord(
+            round=number, prompt=prompt, reply=reply,
+            profile_shown=bool(use_profile and profile and not profile.empty),
+            history_shown=bool(use_history and trajectory.rounds),
+        )
+        if record is not None:
+            record.rounds.append(entry)
+            record.model_calls += 1
 
         this_round = Round(number)
         edits = parse_edits(reply)
@@ -114,6 +129,8 @@ def run(
             apply_edits(workspace, target, edits)
         except (EditError, WorkspaceError) as exc:
             this_round.rejected = str(exc).splitlines()[0][:90]
+            entry.edits_proposed = len(edits)
+            entry.rejected = this_round.rejected
             trajectory.rounds.append(this_round)
             workspace.write(target, original)
             # A round that produced nothing usable is a round that did not
@@ -131,6 +148,8 @@ def run(
         if marker in seen:
             # Measuring a repeat costs a Valgrind run to learn what is known.
             this_round.rejected = "this attempt was already tried"
+            entry.rejected = this_round.rejected
+            entry.patch = this_round.patch
             trajectory.rounds.append(this_round)
             workspace.write(target, original)
             barren += 1
@@ -145,6 +164,15 @@ def run(
         this_round.import_cost = verdict.import_cost
         this_round.equivalent = verdict.equivalent
         this_round.rejected = verdict.rejected
+
+        entry.edits_proposed = len(edits)
+        entry.patch = this_round.patch
+        entry.net_ir = verdict.net_ir
+        entry.import_cost = verdict.import_cost
+        entry.equivalent = verdict.equivalent
+        entry.rejected = verdict.rejected
+        if record is not None:
+            record.measurements += 1
 
         previous_best = trajectory.best
         trajectory.rounds.append(this_round)
@@ -164,6 +192,12 @@ def run(
     # Leave the workspace holding the best attempt rather than the last one,
     # which is the difference between reporting what the agent found and
     # reporting where it happened to finish.
+    if record is not None:
+        record.close(
+            stopped_because=trajectory.stopped_because,
+            selected_round=trajectory.best.number if trajectory.best else None,
+        )
+
     best = trajectory.best
     if best is not None:
         winning_reply = next(

@@ -177,3 +177,71 @@ def test_rounds_that_produce_nothing_usable_still_run_out_of_patience(workspace)
     )
     assert len(t.rounds) == 2
     assert "no improvement" in t.stopped_because
+
+
+def test_the_record_is_filled_during_the_run_not_after(workspace):
+    """The convention requires trajectories be generated with the inference
+    process. It is also the only way the record survives a run that ends
+    badly, since a reconstruction needs the run to have finished."""
+    from speedproof.speedagent.trajectory import TrajectoryRecord
+
+    record = TrajectoryRecord(
+        task_id="t", repo="a/b", arm="agent", base_commit="abc",
+        workload="w", baseline_ir=1000,
+    )
+    run(
+        workspace, "m.py",
+        judge=scoring(900, "it computes different answers", 400),
+        task="t", baseline_ir=1000, rounds=3, patience=5,
+        ask_model=scripted(
+            edit_reply("value = 1", "value = 2"),
+            edit_reply("value = 1", "value = 3"),
+            edit_reply("value = 1", "value = 4"),
+        ),
+        record=record,
+    )
+    assert len(record.rounds) == 3, "every round is recorded, not only the good ones"
+    assert record.rounds[1].rejected == "it computes different answers"
+    assert record.model_calls == 3
+    assert record.measurements == 3
+    assert record.selected_round == 3
+    assert [r.kept for r in record.rounds] == [False, False, True]
+
+
+def test_the_record_notes_what_each_round_was_shown(workspace):
+    """So a reader can tell an ablation apart from the full loop."""
+    from speedproof.speedagent.trajectory import TrajectoryRecord
+
+    record = TrajectoryRecord(
+        task_id="t", repo="a/b", arm="agent_no_profile", base_commit="abc",
+        workload="w", baseline_ir=1000,
+    )
+    run(
+        workspace, "m.py", judge=scoring(900, 800), task="t", baseline_ir=1000,
+        rounds=2, patience=5, use_profile=False,
+        ask_model=scripted(
+            edit_reply("value = 1", "value = 2"),
+            edit_reply("value = 1", "value = 3"),
+        ),
+        record=record,
+    )
+    assert not any(r.profile_shown for r in record.rounds)
+    assert record.rounds[1].history_shown, "the second round saw the first"
+
+
+def test_a_record_survives_a_run_the_model_ended(workspace):
+    from speedproof.speedagent.trajectory import TrajectoryRecord
+
+    record = TrajectoryRecord(
+        task_id="t", repo="a/b", arm="agent", base_commit="abc",
+        workload="w", baseline_ir=1000,
+    )
+
+    def unavailable(prompt):
+        raise ModelUnavailable("rate limited")
+
+    run(workspace, "m.py", judge=scoring(), task="t", baseline_ir=1000,
+        rounds=3, ask_model=unavailable, record=record)
+    assert record.finished_at is not None
+    assert "unavailable" in record.stopped_because
+    assert record.selected_round is None
