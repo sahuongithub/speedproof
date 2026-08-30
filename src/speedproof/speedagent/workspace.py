@@ -28,6 +28,16 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+#: Where workspaces are made.
+#:
+#: Not the system temporary directory. On macOS that resolves under
+#: /var/folders, which the container runtime does not mount into its virtual
+#: machine, so a workspace created there exists on the host and is empty inside
+#: the container. Every measurement then fails identically and the failure
+#: looks like the agent's, which is how two rounds of a real run were lost
+#: before the cause was found.
+WORKSPACE_ROOT = Path.home() / ".speedproof" / "workspaces"
+
 #: Files the agent has no business editing. The measurement reads these, and a
 #: patch that changes them is changing the instrument rather than the code.
 PROTECTED = (
@@ -62,9 +72,11 @@ class Workspace:
         origin = Path(origin).resolve()
         if not origin.is_dir():
             raise WorkspaceError(f"nothing to clone at {origin}")
-        root = Path(into) if into else Path(
-            tempfile.mkdtemp(prefix="speedproof-agent-")
-        )
+        if into is not None:
+            root = Path(into)
+        else:
+            WORKSPACE_ROOT.mkdir(parents=True, exist_ok=True)
+            root = Path(tempfile.mkdtemp(prefix="agent-", dir=WORKSPACE_ROOT))
         root = root.resolve()
         if root.exists():
             shutil.rmtree(root, ignore_errors=True)

@@ -4,6 +4,8 @@ Every test here corresponds to a way the agent could otherwise reach the tree
 that judges it.
 """
 
+from pathlib import Path
+
 import pytest
 
 from speedproof.speedagent.workspace import Workspace, WorkspaceError
@@ -96,3 +98,32 @@ def test_the_workspace_is_removed_afterwards(origin, tmp_path):
 def test_cloning_something_that_is_not_there_is_refused(tmp_path):
     with pytest.raises(WorkspaceError, match="nothing to clone"):
         Workspace.clone(tmp_path / "absent")
+
+
+def test_a_workspace_is_not_made_in_the_system_temporary_directory():
+    """On macOS that resolves under /var/folders, which the container runtime
+    does not mount, so the workspace exists on the host and is empty inside the
+    container. Every measurement then fails identically and the failure looks
+    like the agent's."""
+    import tempfile
+
+    from speedproof.speedagent.workspace import WORKSPACE_ROOT
+
+    system_temp = Path(tempfile.gettempdir()).resolve()
+    assert not str(WORKSPACE_ROOT.resolve()).startswith(str(system_temp))
+    assert WORKSPACE_ROOT.is_relative_to(Path.home())
+
+
+def test_the_default_workspace_is_reachable_by_a_container(tmp_path):
+    """A path the measurement cannot mount is not a workspace, whatever else
+    is true of it."""
+    from speedproof.speedagent.workspace import WORKSPACE_ROOT, Workspace
+
+    origin = tmp_path / "origin"
+    origin.mkdir()
+    (origin / "m.py").write_text("x = 1\n")
+    ws = Workspace.clone(origin)
+    try:
+        assert ws.root.is_relative_to(WORKSPACE_ROOT.resolve())
+    finally:
+        ws.release()
