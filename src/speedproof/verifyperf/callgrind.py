@@ -258,6 +258,12 @@ def _run_in_container(
     platform: str | None = None,
     image: str | None = None,
 ) -> subprocess.CompletedProcess:
+    # Docker reads a relative source as a named volume rather than a path, and
+    # reports it as an invalid volume name, which does not obviously mean
+    # "pass an absolute path".
+    repo = Path(repo).resolve()
+    if not repo.is_dir():
+        raise MeasurementError(f"nothing to mount at {repo}")
     install_cleanup()
     return subprocess.run(
         [_docker(), "run", "--rm", "-i", "--network", "none"]

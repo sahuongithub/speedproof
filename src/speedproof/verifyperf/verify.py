@@ -195,6 +195,7 @@ def _capture(
 ) -> str:
     """Run one unmeasured mode of the inner runner and return its output."""
     ensure_image(platform=platform)
+    repo = Path(repo).resolve()
     rel = workload.relative_to(repo) if workload.is_absolute() else workload
     script = f"""
 set -e

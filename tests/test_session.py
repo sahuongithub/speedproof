@@ -1,5 +1,7 @@
 """A cancelled run must not leave containers behind."""
 
+from pathlib import Path
+
 import signal
 
 from speedproof.verifyperf import session
@@ -32,3 +34,14 @@ def test_interrupt_and_terminate_are_both_handled():
     session.install_cleanup()
     for sig in (signal.SIGINT, signal.SIGTERM):
         assert signal.getsignal(sig) not in (signal.SIG_DFL, signal.SIG_IGN)
+
+
+def test_a_relative_mount_is_refused_with_a_useful_message():
+    """Docker reads a relative source as a named volume and complains about
+    invalid characters, which does not obviously mean 'use an absolute path'."""
+    import pytest
+
+    from speedproof.verifyperf.callgrind import MeasurementError, _run_in_container
+
+    with pytest.raises(MeasurementError, match="nothing to mount"):
+        _run_in_container(Path("does/not/exist"), "true")

@@ -48,8 +48,10 @@ def main(argv: list[str] | None = None) -> int:
     tag = f"speedproof/measure-{repo.split('/')[-1]}:0.1.0"
     image = ensure_image(dependencies=dependencies, tag=tag)
 
-    cache, workspace = Path("corpus/repos"), Path("corpus/work")
-    fingerprint = probe_environment(cache, image=image)
+    cache = Path("corpus/repos").resolve()
+    workspace = Path("corpus/work").resolve()
+    clone = cache / repo.split("/")[-1]
+    fingerprint = probe_environment(clone if clone.is_dir() else cache, image=image)
     print(f"{len(tasks)} task(s) from {repo}", file=sys.stderr)
     print(f"environment {fingerprint}\n", file=sys.stderr)
 
