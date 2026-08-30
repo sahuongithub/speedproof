@@ -34,7 +34,11 @@ _WORKLOAD_TEMPLATE = '''\
 # of importing this module cancels exactly and only the benchmarked call is left.
 import sys
 
+# A project may keep its package under src/, so both are on the path. The
+# order matters: the tree root first, since that is where the benchmark
+# package itself lives.
 sys.path.insert(0, "/work")
+sys.path.insert(1, "/work/src")
 
 from {module} import {cls}
 

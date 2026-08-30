@@ -40,6 +40,7 @@ _COLLECTOR = '''
 import json, sys, coverage
 
 sys.path.insert(0, "/work")
+sys.path.insert(1, "/work/src")
 
 target, out = sys.argv[1], sys.argv[2]
 module, cls, method = target.rsplit(".", 2)

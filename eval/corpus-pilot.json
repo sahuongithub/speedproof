@@ -1,0 +1,79 @@
+{
+ "counts": {
+  "no_workload": 3,
+  "no_effect": 1
+ },
+ "validated": 0,
+ "results": [
+  {
+   "task_id": "xdslproject_xdsl_4339",
+   "repo": "xdslproject/xdsl",
+   "classification": "remove_or_reduce_work",
+   "outcome": "no_workload",
+   "detail": "no workload was observed to execute the changed lines",
+   "workload": null,
+   "workloads_considered": 52,
+   "selection_reason": "covered",
+   "base_net_ir": null,
+   "patched_net_ir": null,
+   "work_reduction": null,
+   "deterministic": null,
+   "equivalent": null,
+   "fingerprint": null
+  },
+  {
+   "task_id": "xdslproject_xdsl_4163",
+   "repo": "xdslproject/xdsl",
+   "classification": "micro_optimizations",
+   "outcome": "no_workload",
+   "detail": "no workload was observed to execute the changed lines",
+   "workload": null,
+   "workloads_considered": 35,
+   "selection_reason": "covered",
+   "base_net_ir": null,
+   "patched_net_ir": null,
+   "work_reduction": null,
+   "deterministic": null,
+   "equivalent": null,
+   "fingerprint": null
+  },
+  {
+   "task_id": "xdslproject_xdsl_4016",
+   "repo": "xdslproject/xdsl",
+   "classification": "cache_and_reuse",
+   "outcome": "no_effect",
+   "detail": "below the 2% threshold",
+   "workload": "benchmarks.microbenchmarks.LoadDialects.time_builtin_load",
+   "workloads_considered": 2,
+   "selection_reason": "covered",
+   "base_net_ir": 265673588,
+   "patched_net_ir": 265595906,
+   "work_reduction": 0.00029239639734153776,
+   "deterministic": true,
+   "equivalent": null,
+   "fingerprint": {
+    "arch": "aarch64",
+    "image_digest": "0.1.0",
+    "python_version": "3.12.14",
+    "valgrind_version": "3.24.0",
+    "libc": "glibc-2.41"
+   }
+  },
+  {
+   "task_id": "xdslproject_xdsl_3985",
+   "repo": "xdslproject/xdsl",
+   "classification": "cache_and_reuse",
+   "outcome": "no_workload",
+   "detail": "no workload was observed to execute the changed lines",
+   "workload": null,
+   "workloads_considered": 2,
+   "selection_reason": "covered",
+   "base_net_ir": null,
+   "patched_net_ir": null,
+   "work_reduction": null,
+   "deterministic": null,
+   "equivalent": null,
+   "fingerprint": null
+  }
+ ]
+}

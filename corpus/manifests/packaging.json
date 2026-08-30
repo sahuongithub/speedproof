@@ -1,0 +1,112 @@
+{
+ "tasks": [
+  {
+   "task_id": "packaging_bce44a178e",
+   "repo_name": "pypa/packaging",
+   "pr_base_sha": "e7f0351352783a8a2f17f8fe15d8504f604468eb",
+   "pr_merge_commit_sha": "bce44a178e0033b51200880de3a1cb9bfadfb849",
+   "patch": "From bce44a178e0033b51200880de3a1cb9bfadfb849 Mon Sep 17 00:00:00 2001\nFrom: Henry Schreiner <HenrySchreinerIII@gmail.com>\nDate: Fri, 12 Jun 2026 23:44:23 -0400\nSubject: [PATCH] perf: add __slots__ to token classes (#1258)\n\nSigned-off-by: Henry Schreiner <henryfs@princeton.edu>\n---\n src/packaging/_tokenizer.py | 4 ++++\n 1 file changed, 4 insertions(+)\n\ndiff --git a/src/packaging/_tokenizer.py b/src/packaging/_tokenizer.py\nindex f467fcf..7c38c49 100644\n--- a/src/packaging/_tokenizer.py\n+++ b/src/packaging/_tokenizer.py\n@@ -13,6 +13,8 @@ if TYPE_CHECKING:\n \n @dataclass\n class Token:\n+    __slots__ = (\"name\", \"position\", \"text\")\n+\n     name: str\n     text: str\n     position: int\n@@ -98,6 +100,8 @@ class Tokenizer:\n     matches.\n     \"\"\"\n \n+    __slots__ = (\"next_token\", \"position\", \"rules\", \"source\")\n+\n     def __init__(\n         self,\n         source: str,\n",
+   "classification": "declared_optimisation",
+   "difficulty": "unknown",
+   "pr_merged_at": "2026-06-12T23:44:23Z",
+   "benchmark_files": [
+    "benchmarks/markers.py",
+    "benchmarks/requirement.py",
+    "benchmarks/resolver.py",
+    "benchmarks/specifiers.py",
+    "benchmarks/utils.py",
+    "benchmarks/version.py"
+   ]
+  },
+  {
+   "task_id": "packaging_d2ac6ba3f8",
+   "repo_name": "pypa/packaging",
+   "pr_base_sha": "54c697714e19da8659b67b5e96eb12a1f8250f9d",
+   "pr_merge_commit_sha": "d2ac6ba3f819cb5c81d79f4820db205d6f8bc126",
+   "patch": "From d2ac6ba3f819cb5c81d79f4820db205d6f8bc126 Mon Sep 17 00:00:00 2001\nFrom: Henry Schreiner <HenrySchreinerIII@gmail.com>\nDate: Fri, 12 Jun 2026 23:12:27 -0400\nSubject: [PATCH] perf(utils): precompile the wheel project-name pattern\n (#1256)\n\nEvery other pattern in this module is compiled at import time; the\nproject-name check in parse_wheel_filename was the one inline re.match\nleft. The redundant \\d inside \\w is also dropped; the match behavior\nis unchanged.\n\nAssisted-by: ClaudeCode:claude-fable-5\n---\n src/packaging/utils.py | 4 +++-\n 1 file changed, 3 insertions(+), 1 deletion(-)\n\ndiff --git a/src/packaging/utils.py b/src/packaging/utils.py\nindex 12399ac..b572d48 100644\n--- a/src/packaging/utils.py\n+++ b/src/packaging/utils.py\n@@ -61,6 +61,8 @@ _validate_regex = re.compile(\n _normalized_regex = re.compile(r\"[a-z0-9]+(?:-[a-z0-9]+)*\", re.ASCII)\n # PEP 427: The build number must start with a digit.\n _build_tag_regex = re.compile(r\"(\\d+)(.*)\", re.ASCII)\n+# PEP 427: Valid characters for an escaped project name in a wheel filename.\n+_wheel_name_regex = re.compile(r\"^[\\w._]*$\", re.UNICODE)\n \n \n def canonicalize_name(name: str, *, validate: bool = False) -> NormalizedName:\n@@ -219,7 +221,7 @@ def parse_wheel_filename(\n     parts = filename.split(\"-\", dashes - 2)\n     name_part = parts[0]\n     # See PEP 427 for the rules on escaping the project name.\n-    if \"__\" in name_part or re.match(r\"^[\\w\\d._]*$\", name_part, re.UNICODE) is None:\n+    if \"__\" in name_part or _wheel_name_regex.match(name_part) is None:\n         raise InvalidWheelFilename(f\"Invalid project name: {filename!r}\")\n     name = canonicalize_name(name_part)\n \n",
+   "classification": "declared_optimisation",
+   "difficulty": "unknown",
+   "pr_merged_at": "2026-06-12T23:12:27Z",
+   "benchmark_files": [
+    "benchmarks/markers.py",
+    "benchmarks/requirement.py",
+    "benchmarks/resolver.py",
+    "benchmarks/specifiers.py",
+    "benchmarks/utils.py",
+    "benchmarks/version.py"
+   ]
+  },
+  {
+   "task_id": "packaging_1529771b80",
+   "repo_name": "pypa/packaging",
+   "pr_base_sha": "e6cd4be75370b9730d70c7397ca2f873dae18f54",
+   "pr_merge_commit_sha": "1529771b80cf6a327afdf33a8a0e7a96ac3f428f",
+   "patch": "From 1529771b80cf6a327afdf33a8a0e7a96ac3f428f Mon Sep 17 00:00:00 2001\nFrom: Henry Schreiner <HenrySchreinerIII@gmail.com>\nDate: Tue, 9 Jun 2026 11:14:32 -0400\nSubject: [PATCH] perf: simply work done in parse_tag a bit (#1236)\n\nSigned-off-by: Henry Schreiner <henryfs@princeton.edu>\n---\n src/packaging/tags.py | 33 +++++++++++++++++----------------\n 1 file changed, 17 insertions(+), 16 deletions(-)\n\ndiff --git a/src/packaging/tags.py b/src/packaging/tags.py\nindex 086d42a..8bd4ec1 100644\n--- a/src/packaging/tags.py\n+++ b/src/packaging/tags.py\n@@ -234,23 +234,24 @@ def parse_tag(tag: str, *, validate_order: bool = False) -> frozenset[Tag]:\n     .. versionadded:: 26.3\n        Raises :class:`InvalidTag` on empty tag components.\n     \"\"\"\n-    tags = set()\n-    interpreters, abis, platforms = tag.split(\"-\")\n-    for component in (interpreters, abis, platforms):\n-        if \"\" in component.split(\".\"):\n+    component_parts = [component.split(\".\") for component in tag.split(\"-\")]\n+    for parts in component_parts:\n+        if \"\" in parts:\n+            component = \".\".join(parts)\n             raise InvalidTag(f\"Tag {tag!r} has an empty component: {component!r}\")\n-    if validate_order:\n-        for component in (interpreters, abis, platforms):\n-            parts = component.split(\".\")\n-            if parts != sorted(parts):\n-                raise UnsortedTagsError(\n-                    f\"Tag component {component!r} is not in sorted order per PEP 425\"\n-                )\n-    for interpreter in interpreters.split(\".\"):\n-        for abi in abis.split(\".\"):\n-            for platform_ in platforms.split(\".\"):\n-                tags.add(Tag(interpreter, abi, platform_))\n-    return frozenset(tags)\n+        if validate_order and parts != sorted(parts):\n+            component = \".\".join(parts)\n+            raise UnsortedTagsError(\n+                f\"Tag component {component!r} is not in sorted order per PEP 425\"\n+            )\n+\n+    interpreters, abis, platforms = component_parts\n+    return frozenset(\n+        Tag(interpreter, abi, platform_)\n+        for interpreter in interpreters\n+        for abi in abis\n+        for platform_ in platforms\n+    )\n \n \n def _get_config_var(name: str, warn: bool = False) -> int | str | None:\n",
+   "classification": "declared_optimisation",
+   "difficulty": "unknown",
+   "pr_merged_at": "2026-06-09T11:14:32Z",
+   "benchmark_files": [
+    "benchmarks/markers.py",
+    "benchmarks/requirement.py",
+    "benchmarks/resolver.py",
+    "benchmarks/specifiers.py",
+    "benchmarks/utils.py",
+    "benchmarks/version.py"
+   ]
+  },
+  {
+   "task_id": "packaging_76cc629825",
+   "repo_name": "pypa/packaging",
+   "pr_base_sha": "04a7600a21febca084022d88c6684f1aedf81c8a",
+   "pr_merge_commit_sha": "76cc6298254887e17d6b39df0425a4b6c2f1714a",
+   "patch": "From 76cc6298254887e17d6b39df0425a4b6c2f1714a Mon Sep 17 00:00:00 2001\nFrom: Henry Schreiner <HenrySchreinerIII@gmail.com>\nDate: Sun, 5 Apr 2026 10:02:52 -0500\nSubject: [PATCH] perf: add __slots__ to Marker (#1147)\n\nSigned-off-by: Henry Schreiner <henryschreineriii@gmail.com>\n---\n src/packaging/markers.py | 2 ++\n 1 file changed, 2 insertions(+)\n\ndiff --git a/src/packaging/markers.py b/src/packaging/markers.py\nindex e1007ae..9019f1c 100644\n--- a/src/packaging/markers.py\n+++ b/src/packaging/markers.py\n@@ -324,6 +324,8 @@ class Marker:\n     :raises InvalidMarker: If ``marker`` cannot be parsed.\n     \"\"\"\n \n+    __slots__ = (\"_markers\",)\n+\n     def __init__(self, marker: str) -> None:\n         # Note: We create a Marker object without calling this constructor in\n         #       packaging.requirements.Requirement. If any additional logic is\n",
+   "classification": "declared_optimisation",
+   "difficulty": "unknown",
+   "pr_merged_at": "2026-04-05T10:02:52Z",
+   "benchmark_files": [
+    "benchmarks/markers.py",
+    "benchmarks/requirement.py",
+    "benchmarks/resolver.py",
+    "benchmarks/specifiers.py",
+    "benchmarks/utils.py",
+    "benchmarks/version.py"
+   ]
+  },
+  {
+   "task_id": "packaging_baa9ea8c7f",
+   "repo_name": "pypa/packaging",
+   "pr_base_sha": "e839d73030b410d4156e6a496249fbdb1e498fab",
+   "pr_merge_commit_sha": "baa9ea8c7fa773fc4039d090bc7ec6452b860ec6",
+   "patch": "From baa9ea8c7fa773fc4039d090bc7ec6452b860ec6 Mon Sep 17 00:00:00 2001\nFrom: Damian Shaw <damian.peter.shaw@gmail.com>\nDate: Wed, 11 Mar 2026 13:27:27 -0400\nSubject: [PATCH] perf: skip hash property (#1115)\n\n---\n benchmarks/version.py    |  5 +++++\n src/packaging/version.py | 11 ++++++++++-\n 2 files changed, 15 insertions(+), 1 deletion(-)\n\ndiff --git a/benchmarks/version.py b/benchmarks/version.py\nindex 33398c4..5d57138 100644\n--- a/benchmarks/version.py\n+++ b/benchmarks/version.py\n@@ -41,6 +41,11 @@ class TimeVersionSuite:\n         for v in self.valid_versions:\n             hash(Version(v))\n \n+    @add_attributes(pretty_name=\"Version hash (warm cache)\")\n+    def time_hash_warm(self) -> None:\n+        for v in self.version_objects_warm:\n+            hash(v)\n+\n     @add_attributes(pretty_name=\"Version __str__\")\n     def time_str(self) -> None:\n         for version in self.valid_versions:\ndiff --git a/src/packaging/version.py b/src/packaging/version.py\nindex d8b8f44..80c64ed 100644\n--- a/src/packaging/version.py\n+++ b/src/packaging/version.py\n@@ -551,7 +551,16 @@ class Version(_BaseVersion):\n     # __hash__ must be defined when __eq__ is overridden,\n     # otherwise Python sets __hash__ to None.\n     def __hash__(self) -> int:\n-        return hash(self._key)\n+        if self._key_cache is None:\n+            self._key_cache = _cmpkey(\n+                self._epoch,\n+                self._release,\n+                self._pre,\n+                self._post,\n+                self._dev,\n+                self._local,\n+            )\n+        return hash(self._key_cache)\n \n     # Override comparison methods to use direct _key_cache access\n     # This is faster than property access, especially before Python 3.12\n",
+   "classification": "declared_optimisation",
+   "difficulty": "unknown",
+   "pr_merged_at": "2026-03-11T13:27:27Z",
+   "benchmark_files": [
+    "benchmarks/markers.py",
+    "benchmarks/requirement.py",
+    "benchmarks/resolver.py",
+    "benchmarks/specifiers.py",
+    "benchmarks/utils.py",
+    "benchmarks/version.py"
+   ]
+  },
+  {
+   "task_id": "packaging_e839d73030",
+   "repo_name": "pypa/packaging",
+   "pr_base_sha": "e3af78f17a5230ffdc846e0b08f3e6e47b3edcfe",
+   "pr_merge_commit_sha": "e839d73030b410d4156e6a496249fbdb1e498fab",
+   "patch": "From e839d73030b410d4156e6a496249fbdb1e498fab Mon Sep 17 00:00:00 2001\nFrom: Stephen Rosen <sirosen@globus.org>\nDate: Mon, 9 Mar 2026 15:22:40 -0500\nSubject: [PATCH] perf: simply Specifier regex (#1106)\n\nExamining the specifier regex, two potential optimizations seem\nworthwhile:\n\n1. Negative lookbehinds can be eliminated if we combine the operator\n   regex with the version regex -- this avoids crawling the same\n   characters of a string forwards and backwards.\n\n2. Do more string operations, like `strip()` rather than having the\n   regex engine do this work.\n\nThese ideas are somewhat combined, in that getting rid of the lookbehinds\nonly really works by eliminating the group selectors in use. And removing\nthe group selectors in the regex requires that we do more string\noperations.\n\nThis also interestingly results in a regex stored in the `Specifier`\nwhich matches its secondary usage in `_tokenizer`, which was previously\nvery slightly misaligned (in that the group captures in the regex were\nunused).\n---\n src/packaging/_tokenizer.py |  2 +-\n src/packaging/specifiers.py | 36 +++++++++++++++++-------------------\n 2 files changed, 18 insertions(+), 20 deletions(-)\n\ndiff --git a/src/packaging/_tokenizer.py b/src/packaging/_tokenizer.py\nindex e6d20dd..5ab891c 100644\n--- a/src/packaging/_tokenizer.py\n+++ b/src/packaging/_tokenizer.py\n@@ -75,7 +75,7 @@ DEFAULT_RULES: dict[str, re.Pattern[str]] = {\n         re.VERBOSE,\n     ),\n     \"SPECIFIER\": re.compile(\n-        Specifier._operator_regex_str + Specifier._version_regex_str,\n+        Specifier._specifier_regex_str,\n         re.VERBOSE | re.IGNORECASE,\n     ),\n     \"AT\": re.compile(r\"\\@\"),\ndiff --git a/src/packaging/specifiers.py b/src/packaging/specifiers.py\nindex 27a0d0b..0d55cad 100644\n--- a/src/packaging/specifiers.py\n+++ b/src/packaging/specifiers.py\n@@ -169,18 +169,15 @@ class Specifier(BaseSpecifier):\n \n     __slots__ = (\"_prereleases\", \"_spec\", \"_spec_version\", \"_wildcard_split\")\n \n-    _operator_regex_str = r\"\"\"\n-        (?P<operator>(~=|==|!=|<=|>=|<|>|===))\n-        \"\"\"\n-    _version_regex_str = r\"\"\"\n-        (?P<version>\n+    _specifier_regex_str = r\"\"\"\n+        (?:\n             (?:\n                 # The identity operators allow for an escape hatch that will\n                 # do an exact string match of the version you wish to install.\n                 # This will not be parsed by PEP 440 and we cannot determine\n                 # any semantic meaning from it. This operator is discouraged\n                 # but included entirely as an escape hatch.\n-                (?<====)  # Only match for the identity operator\n+                ===  # Only match for the identity operator\n                 \\s*\n                 [^\\s;)]*  # The arbitrary version can be just about anything,\n                           # we match everything except for whitespace, a\n@@ -192,7 +189,7 @@ class Specifier(BaseSpecifier):\n                 # The (non)equality operators allow for wild card and local\n                 # versions to be specified so we have to define these two\n                 # operators separately to enable that.\n-                (?<===|!=)            # Only match for equals and not equals\n+                (?:==|!=)            # Only match for equals and not equals\n \n                 \\s*\n                 v?\n@@ -221,7 +218,7 @@ class Specifier(BaseSpecifier):\n             (?:\n                 # The compatible operator requires at least two digits in the\n                 # release segment.\n-                (?<=~=)               # Only match for the compatible operator\n+                (?:~=)               # Only match for the compatible operator\n \n                 \\s*\n                 v?\n@@ -244,9 +241,7 @@ class Specifier(BaseSpecifier):\n                 # (non)equality operators do. Specifically they do not allow\n                 # local versions to be specified nor do they allow the prefix\n                 # matching wild cards.\n-                (?<!==|!=|~=)         # We have special cases for these\n-                                      # operators so we want to make sure they\n-                                      # don't match here.\n+                (?:<=|>=|<|>)\n \n                 \\s*\n                 v?\n@@ -267,8 +262,7 @@ class Specifier(BaseSpecifier):\n         \"\"\"\n \n     _regex = re.compile(\n-        r\"\\s*\" + _operator_regex_str + _version_regex_str + r\"\\s*\",\n-        re.VERBOSE | re.IGNORECASE,\n+        r\"\\s*\" + _specifier_regex_str + r\"\\s*\", re.VERBOSE | re.IGNORECASE\n     )\n \n     _operators: Final = {\n@@ -295,14 +289,18 @@ class Specifier(BaseSpecifier):\n         :raises InvalidSpecifier:\n             If the given specifier is invalid (i.e. bad syntax).\n         \"\"\"\n-        match = self._regex.fullmatch(spec)\n-        if not match:\n+        if not self._regex.fullmatch(spec):\n             raise InvalidSpecifier(f\"Invalid specifier: {spec!r}\")\n \n-        self._spec: tuple[str, str] = (\n-            match.group(\"operator\").strip(),\n-            match.group(\"version\").strip(),\n-        )\n+        spec = spec.strip()\n+        if spec.startswith(\"===\"):\n+            operator, version = spec[:3], spec[3:].strip()\n+        elif spec.startswith((\"~=\", \"==\", \"!=\", \"<=\", \">=\")):\n+            operator, version = spec[:2], spec[2:].strip()\n+        else:\n+            operator, version = spec[:1], spec[1:].strip()\n+\n+        self._spec: tuple[str, str] = (operator, version)\n \n         # Store whether or not this Specifier should accept prereleases\n         self._prereleases = prereleases\n",
+   "classification": "declared_optimisation",
+   "difficulty": "unknown",
+   "pr_merged_at": "2026-03-09T16:22:40Z",
+   "benchmark_files": [
+    "benchmarks/markers.py",
+    "benchmarks/requirement.py",
+    "benchmarks/resolver.py",
+    "benchmarks/specifiers.py",
+    "benchmarks/utils.py",
+    "benchmarks/version.py"
+   ]
+  }
+ ]
+}
