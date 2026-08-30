@@ -1,0 +1,124 @@
+{
+ "counts": {
+  "validated": 1,
+  "no_workload": 3,
+  "no_effect": 2
+ },
+ "validated": 1,
+ "results": [
+  {
+   "task_id": "packaging_bce44a178e",
+   "repo": "pypa/packaging",
+   "classification": "declared_optimisation",
+   "outcome": "validated",
+   "detail": "",
+   "workload": "benchmarks.markers.TimeMarkerSuite.time_constructor",
+   "workloads_considered": 20,
+   "selection_reason": "covered",
+   "base_net_ir": 33757056,
+   "patched_net_ir": 32740814,
+   "work_reduction": 0.030104580209838205,
+   "deterministic": true,
+   "equivalent": null,
+   "fingerprint": {
+    "arch": "aarch64",
+    "image_digest": "0.1.0",
+    "python_version": "3.12.14",
+    "valgrind_version": "3.24.0",
+    "libc": "glibc-2.41"
+   }
+  },
+  {
+   "task_id": "packaging_d2ac6ba3f8",
+   "repo": "pypa/packaging",
+   "classification": "declared_optimisation",
+   "outcome": "no_workload",
+   "detail": "no workload was observed to execute the changed lines",
+   "workload": null,
+   "workloads_considered": 20,
+   "selection_reason": "covered",
+   "base_net_ir": null,
+   "patched_net_ir": null,
+   "work_reduction": null,
+   "deterministic": null,
+   "equivalent": null,
+   "fingerprint": null
+  },
+  {
+   "task_id": "packaging_1529771b80",
+   "repo": "pypa/packaging",
+   "classification": "declared_optimisation",
+   "outcome": "no_workload",
+   "detail": "no workload was observed to execute the changed lines",
+   "workload": null,
+   "workloads_considered": 20,
+   "selection_reason": "covered",
+   "base_net_ir": null,
+   "patched_net_ir": null,
+   "work_reduction": null,
+   "deterministic": null,
+   "equivalent": null,
+   "fingerprint": null
+  },
+  {
+   "task_id": "packaging_76cc629825",
+   "repo": "pypa/packaging",
+   "classification": "declared_optimisation",
+   "outcome": "no_workload",
+   "detail": "no workload was observed to execute the changed lines",
+   "workload": null,
+   "workloads_considered": 20,
+   "selection_reason": "covered",
+   "base_net_ir": null,
+   "patched_net_ir": null,
+   "work_reduction": null,
+   "deterministic": null,
+   "equivalent": null,
+   "fingerprint": null
+  },
+  {
+   "task_id": "packaging_baa9ea8c7f",
+   "repo": "pypa/packaging",
+   "classification": "declared_optimisation",
+   "outcome": "no_effect",
+   "detail": "below the 2% threshold",
+   "workload": "benchmarks.version.TimeVersionSuite.time_sort_warm",
+   "workloads_considered": 19,
+   "selection_reason": "covered",
+   "base_net_ir": 19839110,
+   "patched_net_ir": 19825972,
+   "work_reduction": 0.0006622272874135987,
+   "deterministic": true,
+   "equivalent": null,
+   "fingerprint": {
+    "arch": "aarch64",
+    "image_digest": "0.1.0",
+    "python_version": "3.12.14",
+    "valgrind_version": "3.24.0",
+    "libc": "glibc-2.41"
+   }
+  },
+  {
+   "task_id": "packaging_e839d73030",
+   "repo": "pypa/packaging",
+   "classification": "declared_optimisation",
+   "outcome": "no_effect",
+   "detail": "below the 2% threshold",
+   "workload": "benchmarks.specifiers.TimeSpecSuite.time_constructor",
+   "workloads_considered": 19,
+   "selection_reason": "covered",
+   "base_net_ir": 17382140,
+   "patched_net_ir": 17396642,
+   "work_reduction": -0.0008343046368283767,
+   "deterministic": true,
+   "equivalent": null,
+   "fingerprint": {
+    "arch": "aarch64",
+    "image_digest": "0.1.0",
+    "python_version": "3.12.14",
+    "valgrind_version": "3.24.0",
+    "libc": "glibc-2.41"
+   }
+  }
+ ]
+}

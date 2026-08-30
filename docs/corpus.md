@@ -170,3 +170,43 @@ Coverage is collected per workload in its own process, and on the base tree
 only. Sharing a process lets an earlier workload's imports make a later one
 look as though it touches nothing, and the patched tree may not contain the
 lines the patch removed, which would misalign the diff's line numbers.
+
+## What fraction of real optimisation work is measurable
+
+Running the pipeline across two repositories gives the first honest answer, and
+it is lower than one would hope.
+
+| Outcome | xdsl (25 tasks) | packaging (6 tasks) |
+| --- | ---: | ---: |
+| validated | 0 | **1** |
+| measured, below threshold | 1 | 2 |
+| no workload reaches the change | 4 | 3 |
+| no callable benchmark at that commit | 19 | 0 |
+| patch no longer applies | 1 | 0 |
+
+The number that matters is how many tasks could be measured at all: **1 of 25
+for xdsl, 3 of 6 for packaging.** The difference is not the pipeline, which
+behaved identically for both. It is a property of the repositories.
+
+xdsl's suite was rewritten in 2025, so nineteen of its tasks predate any
+callable benchmark. Of the six that had one, four were changes to code that no
+benchmark executes. packaging is the opposite case: its benchmark modules
+correspond one-to-one with the library modules its optimisations touch —
+`benchmarks/markers.py` against `perf(markers):` against
+`src/packaging/markers.py`, and the same for requirements, specifiers, utils
+and version.
+
+That correspondence is now a selection criterion, and it is one the earlier
+repository survey could not check. That survey asked whether a project has
+benchmarks and whether it has optimisation commits. Both questions can be
+answered yes by a project where the two never meet.
+
+### The validated task
+
+```
+packaging_bce44a178e   +3.01%   33,757,056 -> 32,740,814 instructions
+```
+
+The commit is `perf: add __slots__ to token classes`. A maintainer made that
+change believing it was faster; the harness independently confirms it, to the
+instruction, with the outputs unchanged.
