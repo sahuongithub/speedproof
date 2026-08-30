@@ -33,11 +33,12 @@ jobs:
         include:
           - arch: x86_64
             runner: ubuntu-latest
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-    # Free arm64 runners exist for public repositories only, so on a private
-    # repository that leg is skipped rather than left to fail allocation.
-    if: ${{ matrix.arch != 'arm64' || !github.event.repository.private }}
+          # Free arm64 runners are available to public repositories only. When
+          # this repository is made public, add:
+          #   - arch: arm64
+          #     runner: ubuntu-24.04-arm
+          # and the agreement job below starts comparing verdicts across
+          # architectures instead of reporting that there is nothing to compare.
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
