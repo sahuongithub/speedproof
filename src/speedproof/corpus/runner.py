@@ -261,8 +261,12 @@ def _same_answer(trees, benchmark: Benchmark, image, platform) -> bool | None:
 
     try:
         digests = {
-            side: _capture(tree, Path(f"_sp_{benchmark.cls}_{benchmark.method}".lower()
-                                      + ".py"), "checksum", platform)
+            side: _capture(
+                tree,
+                Path(f"_sp_{benchmark.cls or 'fn'}_{benchmark.method}".lower() + ".py"),
+                "checksum",
+                platform,
+            )
             for side, tree in (("base", trees.base), ("patched", trees.patched))
         }
     except Exception:

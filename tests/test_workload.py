@@ -94,3 +94,49 @@ def test_setup_is_only_called_when_defined(tmp_path):
     )
     assert "_bench.setup()" not in workload
     assert "_bench.setup()" not in baseline
+
+
+MODULE_LEVEL = '''
+from timeit import default_timer as clock
+
+def bench_R1():
+    "a benchmark written as a module-level function"
+    compute()
+
+def bench_with_args(n):
+    compute(n)
+
+def helper():
+    pass
+'''
+
+
+def test_module_level_benchmarks_are_found(tmp_path):
+    """Older suites write benchmarks as functions, not methods on a class.
+    Recognising only one convention read a repository offering sixty-eight
+    optimisations as having no benchmarks at all."""
+    path = tmp_path / "sympy" / "benchmarks" / "bench_symbench.py"
+    path.parent.mkdir(parents=True)
+    path.write_text(MODULE_LEVEL)
+    found = discover(tmp_path, ("sympy/benchmarks/bench_symbench.py",))
+    assert [b.method for b in found] == ["bench_R1"]
+    assert found[0].cls is None
+    assert found[0].name == "sympy.benchmarks.bench_symbench.bench_R1"
+
+
+def test_a_function_benchmark_taking_arguments_is_skipped(tmp_path):
+    path = tmp_path / "b.py"
+    path.write_text(MODULE_LEVEL)
+    assert "bench_with_args" not in {b.method for b in discover(tmp_path, ("b.py",))}
+
+
+def test_a_function_benchmark_renders_a_matched_pair(tmp_path):
+    path = tmp_path / "b.py"
+    path.write_text(MODULE_LEVEL)
+    bench = discover(tmp_path, ("b.py",))[0]
+    workload, baseline = render(tmp_path, bench)
+    assert "bench_R1()" in workload
+    assert "bench_R1()" not in baseline
+    assert "from b import bench_R1" in baseline
+    differing = set(workload.splitlines()) ^ set(baseline.splitlines())
+    assert differing == {"    bench_R1()"}

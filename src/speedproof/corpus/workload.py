@@ -20,13 +20,33 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-#: Method-name prefixes that mark a benchmark under the conventions in use.
-_BENCHMARK_PREFIX = ("time_", "track_")
+#: Name prefixes that mark a benchmark. asv uses ``time_``/``track_`` methods
+#: on a class; older suites, sympy's among them, use module-level ``bench_``
+#: functions. Recognising only one of those rejects a working project for using
+#: the other -- which is how a repository offering sixty-eight optimisations
+#: was first read as having no benchmarks at all.
+_BENCHMARK_PREFIX = ("time_", "track_", "bench_")
 
 #: Benchmarks a project has explicitly turned off. asv suites disable a method
 #: by renaming rather than deleting it, and running one anyway measures
 #: something the project decided was not worth measuring.
 _DISABLED_PREFIX = ("ignore_", "skip_", "_")
+
+_FUNCTION_TEMPLATE = '''\
+# Generated from {module}.{method} in the project under measurement.
+# The paired baseline is identical except that run() does nothing, so the cost
+# of importing this module cancels exactly and only the benchmarked call is left.
+import sys
+
+sys.path.insert(0, "/work")
+sys.path.insert(1, "/work/src")
+
+from {module} import {method}
+
+
+def run():
+{body}
+'''
 
 _WORKLOAD_TEMPLATE = '''\
 # Generated from {module}.{cls}.{method} in the project under measurement.
@@ -52,14 +72,20 @@ def run():
 
 @dataclass(frozen=True)
 class Benchmark:
-    """One callable benchmark found in a project's suite."""
+    """One callable benchmark found in a project's suite.
+
+    ``cls`` is None for a module-level function, which is how older suites are
+    written.
+    """
 
     module: str
-    cls: str
+    cls: str | None
     method: str
 
     @property
     def name(self) -> str:
+        if self.cls is None:
+            return f"{self.module}.{self.method}"
         return f"{self.module}.{self.cls}.{self.method}"
 
 
@@ -80,6 +106,20 @@ def discover(tree: Path, benchmark_files: tuple[str, ...]) -> list[Benchmark]:
         except SyntaxError:
             continue
         module = relative[: -len(".py")].replace("/", ".")
+
+        # Module-level benchmark functions, as older suites are written.
+        for node in module_ast.body:
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name.startswith(_DISABLED_PREFIX):
+                continue
+            if not node.name.startswith(_BENCHMARK_PREFIX):
+                continue
+            if node.args.args or node.args.kwonlyargs:
+                # A benchmark taking arguments needs a runner to supply them.
+                continue
+            found.append(Benchmark(module=module, cls=None, method=node.name))
+
         for node in module_ast.body:
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -119,6 +159,19 @@ def _setup_call(tree: Path, benchmark: Benchmark) -> str:
 
 def render(tree: Path, benchmark: Benchmark) -> tuple[str, str]:
     """Return the workload and its paired baseline, as source text."""
+    if benchmark.cls is None:
+        workload = _FUNCTION_TEMPLATE.format(
+            module=benchmark.module,
+            method=benchmark.method,
+            body=f"    {benchmark.method}()\n    return None",
+        )
+        baseline = _FUNCTION_TEMPLATE.format(
+            module=benchmark.module,
+            method=benchmark.method,
+            body="    return None",
+        )
+        return workload, baseline
+
     setup = _setup_call(tree, benchmark)
     workload = _WORKLOAD_TEMPLATE.format(
         module=benchmark.module,
@@ -140,7 +193,7 @@ def render(tree: Path, benchmark: Benchmark) -> tuple[str, str]:
 def install(tree: Path, benchmark: Benchmark) -> tuple[Path, Path]:
     """Write the workload pair into ``tree`` and return their relative paths."""
     workload, baseline = render(tree, benchmark)
-    stem = f"_sp_{benchmark.cls}_{benchmark.method}".lower()
+    stem = f"_sp_{benchmark.cls or 'fn'}_{benchmark.method}".lower()
     (tree / f"{stem}.py").write_text(workload)
     (tree / f"{stem}_baseline.py").write_text(baseline)
     return Path(f"{stem}.py"), Path(f"{stem}_baseline.py")
