@@ -40,6 +40,18 @@ class Verdict(str, Enum):
     NOT_EQUIVALENT = "not_equivalent"
     UNSTABLE = "unstable"
     MEMORY_TRADE = "memory_trade"
+    WORK_MOVED = "work_moved"
+    """The work left the measured region rather than the program.
+
+    A paired baseline subtracts whatever the workload's module does when it is
+    imported, which is what makes the measurement about the benchmarked call.
+    It is also somewhere to hide: work moved into the import is carried by both
+    sides of the subtraction and cancels. Measured on a module that precomputes
+    its answer at import, the net count fell by 99.5% -- from 1,334,809
+    instructions to 6,585 -- while the import cost rose by more than the
+    saving, so the program did more work in total and read as a two-hundredfold
+    improvement.
+    """
 
     @property
     def is_accepted(self) -> bool:
@@ -119,6 +131,22 @@ class Comparison:
         return (self.candidate.retained_blocks - base) / base
 
     @property
+    def total_work_change(self) -> float | None:
+        """Change in work including what the import does.
+
+        None when either side did not report an import cost, since a
+        comparison that cannot see the import cannot rule out the work having
+        moved there.
+        """
+        base_import = self.baseline.measurement.import_cost
+        candidate_import = self.candidate.measurement.import_cost
+        if base_import is None or candidate_import is None:
+            return None
+        before = self.baseline.measurement.net + base_import
+        after = self.candidate.measurement.net + candidate_import
+        return (before - after) / before if before > 0 else None
+
+    @property
     def stable(self) -> bool:
         return (
             self.baseline.measurement.relative_spread <= self.tolerance
@@ -135,6 +163,15 @@ class Comparison:
             return Verdict.UNSTABLE
 
         reduction = self.work_reduction
+
+        # Before crediting a saving, check the work actually left the program
+        # rather than the measured region. An import-time precomputation is
+        # carried by both sides of a paired baseline and cancels exactly.
+        total = self.total_work_change
+        if reduction >= self.threshold and total is not None:
+            if total < self.threshold / 2:
+                return Verdict.WORK_MOVED
+
         if reduction >= self.threshold:
             # Instruction count rewards buying a saving with memory traffic.
             # rustc PR #77006 cut instructions by 83.9% and lost 14.5% on the
@@ -167,6 +204,13 @@ class Comparison:
             return (
                 f"measurements vary by up to {worst:.4%} of the net count, "
                 f"above the {self.tolerance:.4%} needed to support a claim"
+            )
+        if v is Verdict.WORK_MOVED:
+            return (
+                f"the measured region does {self.work_reduction:.1%} less work "
+                f"but the program as a whole does "
+                f"{(self.total_work_change or 0):+.1%}; the work moved into "
+                "the import rather than going away"
             )
         if v is Verdict.MEMORY_TRADE:
             return (

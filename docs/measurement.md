@@ -231,3 +231,33 @@ rather than failing them. Every write therefore goes to a new file which is
 renamed into place, so the original is untouched by construction rather than by
 care. Writes to the generated workload, to git metadata, or to any path
 resolving outside the workspace are refused.
+
+## Where a paired baseline can hide work
+
+Pairing the baseline with the workload is what makes the measurement about the
+benchmarked call rather than about importing a module. It is also somewhere to
+hide. Work moved into the import is carried by both sides of the subtraction
+and cancels exactly, so an optimisation that computes its answer before the
+measurement begins is not merely under-penalised — it is invisible.
+
+Measured on a module that precomputes its result at import:
+
+| | net Ir | import cost |
+| --- | ---: | ---: |
+| honest | 1,334,809 | 492,817 |
+| precomputed at import | **6,585** | **1,878,686** |
+
+That reads as a two-hundredfold improvement. The program does more work in
+total: 1,885,271 instructions against 1,827,626.
+
+So every measurement now records what the module costs merely to import,
+obtained by running an empty script through the same wrapper, and a saving in
+the measured region is credited only when the program as a whole also does less
+work. A change that makes the import itself cheaper still counts — that is real
+work — and a comparison where either side did not report an import cost returns
+unknown rather than assuming the work stayed put.
+
+This is the failure that the surveyed literature reports as the most common
+by a wide margin: of eighteen hacks found in one manual review, fourteen were
+caching or persistent state, and import-time effects are noted as surviving
+even harnesses that run each repetition in a fresh process.

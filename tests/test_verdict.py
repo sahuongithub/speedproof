@@ -89,3 +89,59 @@ def test_change_below_threshold_is_unchanged():
     c = cmp_(obs(1_000_000), obs(980_000))
     assert c.verdict is Verdict.UNCHANGED
     assert "below the" in c.explain()
+
+
+#: Starting Python and doing nothing, which every measurement carries.
+STARTUP = 1_000_000
+
+
+def obs_with_import(net, import_cost, checksum="same", allocations=1000):
+    """An observation that also reports what its module costs to import.
+
+    The three counts nest: the empty baseline is Python starting, the paired
+    baseline adds what the module does when imported, and the total adds the
+    benchmarked call on top of that.
+    """
+    baseline = STARTUP + import_cost
+    total = baseline + net
+    return Observation(
+        measurement=IrMeasurement(
+            total=total, baseline=baseline, fingerprint=FP,
+            repetitions=1, raw_totals=(total,),
+            empty_baseline=STARTUP,
+        ),
+        checksum=checksum,
+        retained_blocks=allocations,
+    )
+
+
+def test_work_moved_into_the_import_is_not_an_improvement():
+    """Measured on a real module: precomputing at import cut the net count
+    99.5% while the program did more work in total."""
+    c = cmp_(obs_with_import(1_000_000, 100_000),
+             obs_with_import(5_000, 1_200_000))
+    assert c.verdict is Verdict.WORK_MOVED
+    assert not c.verdict.is_accepted
+    assert "moved into the import" in c.explain()
+
+
+def test_a_real_improvement_survives_the_import_check():
+    """The import is unchanged and the work genuinely went away."""
+    c = cmp_(obs_with_import(1_000_000, 100_000),
+             obs_with_import(400_000, 100_000))
+    assert c.verdict is Verdict.IMPROVED
+
+
+def test_a_cheaper_import_is_still_an_improvement():
+    """Making the import itself cheaper is real work, not a trick."""
+    c = cmp_(obs_with_import(1_000_000, 500_000),
+             obs_with_import(400_000, 200_000))
+    assert c.verdict is Verdict.IMPROVED
+
+
+def test_without_an_import_cost_the_check_cannot_run():
+    """A comparison that cannot see the import cannot rule out the work having
+    moved there, so total_work_change is unknown rather than zero."""
+    c = cmp_(obs(1_000_000), obs(400_000))
+    assert c.total_work_change is None
+    assert c.verdict is Verdict.IMPROVED

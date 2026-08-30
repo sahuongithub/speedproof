@@ -20,13 +20,15 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 
-from speedproof.corpus.build import build, needs_build, share_artefacts
-from speedproof.corpus.checkout import CheckoutError, materialise, release
-from speedproof.corpus.coverage import collect
-from speedproof.corpus.relevance import Selection, select_workloads
+from speedproof.corpus.checkout import CheckoutError, release
 from speedproof.corpus.task import Task
-from speedproof.corpus.workload import Benchmark, discover, install
-from speedproof.verifyperf.callgrind import MeasurementError, measure
+from speedproof.corpus.variants import (
+    NotPreparable,
+    computes_same_answer,
+    measure_tree,
+    prepare,
+)
+from speedproof.verifyperf.callgrind import MeasurementError
 from speedproof.verifyperf.fingerprint import Fingerprint
 
 
@@ -152,72 +154,30 @@ def run_task(
     )
 
     try:
-        trees = materialise(task, cache, workspace, keep=True)
+        prepared = prepare(
+            task, cache, workspace,
+            image=image, platform=platform, fingerprint=fingerprint,
+        )
     except CheckoutError as exc:
         result.outcome = Outcome.PATCH_FAILED
         result.detail = str(exc).splitlines()[0][:100]
         return result
+    except NotPreparable as exc:
+        result.outcome = Outcome(exc.outcome)
+        result.detail = exc.detail
+        return result
+    except MeasurementError as exc:
+        result.outcome = Outcome.UNMEASURABLE
+        result.detail = str(exc).splitlines()[0][:100]
+        return result
 
     try:
-        if needs_build(task.repo):
-            # Once, in the base tree, then shared: the patch touches no
-            # compiled source, so both trees want the same artefacts.
-            build(task.repo, trees.base, image=image, platform=platform)
-            share_artefacts(trees.base, trees.patched)
+        result.workload = prepared.benchmark.name
+        result.workloads_considered = len(prepared.selection.workloads)
+        result.selection_reason = prepared.selection.reason.value
 
-        benchmarks = discover(trees.base, task.benchmark_files)
-        result.workloads_considered = len(benchmarks)
-        if not benchmarks:
-            result.outcome = Outcome.NO_BENCHMARKS
-            result.detail = "no callable benchmark at this commit"
-            return result
-
-        try:
-            coverage = collect(trees.base, benchmarks, image=image, platform=platform)
-        except MeasurementError as exc:
-            # Coverage is unavailable rather than empty. The selector escalates
-            # on that rather than concluding nothing is relevant.
-            coverage = None
-            result.detail = f"coverage unavailable: {str(exc).splitlines()[0][:60]}"
-
-        selection = select_workloads(
-            task.patch, coverage, tuple(b.name for b in benchmarks)
-        )
-        result.selection_reason = selection.reason.value
-        if not selection.measurable:
-            result.outcome = (
-                Outcome.NO_WORKLOAD
-                if selection.reason is Selection.COVERED
-                else Outcome.NO_BENCHMARKS
-            )
-            result.detail = selection.detail
-            return result
-
-        # Measure the cheapest relevant workload. Where several reach the
-        # change they are measuring the same patch, and Valgrind is expensive
-        # enough that the choice is worth making deliberately.
-        chosen_name = min(
-            selection.workloads,
-            key=lambda n: sum(len(v) for v in (coverage or {}).get(n, {}).values())
-            or 10**9,
-        )
-        chosen = next(b for b in benchmarks if b.name == chosen_name)
-        result.workload = chosen.name
-
-        measurements = {}
-        for side, tree in (("base", trees.base), ("patched", trees.patched)):
-            workload, baseline = install(tree, chosen)
-            measurements[side] = measure(
-                tree,
-                workload,
-                repetitions=repetitions,
-                fingerprint=fingerprint,
-                platform=platform,
-                image=image,
-                baseline=baseline,
-            )
-
-        base, patched = measurements["base"], measurements["patched"]
+        base = measure_tree(prepared, prepared.trees.base, repetitions)
+        patched = measure_tree(prepared, prepared.trees.patched, repetitions)
         result.base_net_ir = base.net
         result.patched_net_ir = patched.net
         result.deterministic = base.deterministic and patched.deterministic
@@ -230,7 +190,7 @@ def run_task(
 
         result.work_reduction = (base.net - patched.net) / base.net
 
-        equivalent = _same_answer(trees, chosen, image, platform)
+        equivalent = computes_same_answer(prepared, prepared.trees.patched)
         result.equivalent = equivalent
         if equivalent is False:
             result.outcome = Outcome.NOT_EQUIVALENT
@@ -253,46 +213,3 @@ def run_task(
     finally:
         if not keep:
             release(task, workspace / task.slug, cache)
-
-
-def _same_answer(trees, benchmark: Benchmark, image, platform) -> bool | None:
-    """Whether both trees compute the same thing, where that can be seen.
-
-    A benchmark under this convention usually returns nothing, so for most
-    workloads there is no value to compare and this returns ``None``: unknown,
-    not equal. Reporting unknown as equal would be the vacuous check every
-    published benchmark in this area has, so correctness for those tasks has to
-    come from the project's own tests instead.
-    """
-    from speedproof.verifyperf.verify import _capture
-
-    try:
-        digests = {
-            side: _capture(
-                tree,
-                Path(f"_sp_{benchmark.cls or 'fn'}_{benchmark.method}".lower() + ".py"),
-                "checksum",
-                platform,
-            )
-            for side, tree in (("base", trees.base), ("patched", trees.patched))
-        }
-    except Exception:
-        return None
-    # Every timing benchmark returns None, which hashes identically whatever
-    # the code did. That agreement is not evidence.
-    if len(set(digests.values())) == 1 and _is_empty_digest(digests["base"]):
-        return None
-    return digests["base"] == digests["patched"]
-
-
-#: The canonical encoding of ``None``, which is what a timing benchmark returns.
-_NONE_DIGEST: str | None = None
-
-
-def _is_empty_digest(digest: str) -> bool:
-    global _NONE_DIGEST
-    if _NONE_DIGEST is None:
-        from speedproof.verifyperf.canon import checksum
-
-        _NONE_DIGEST = checksum(None)
-    return digest == _NONE_DIGEST

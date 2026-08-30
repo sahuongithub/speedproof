@@ -84,6 +84,22 @@ class IrMeasurement:
     fingerprint: Fingerprint
     repetitions: int
     raw_totals: tuple[int, ...] = field(default=())
+    empty_baseline: int | None = None
+    """Cost of starting Python and nothing else.
+
+    Recorded so that ``import_cost`` can be known. A paired baseline subtracts
+    everything the workload's module does on import, which is what makes the
+    measurement about the benchmarked call -- and is also a way to be paid
+    nothing for moving the work into the import, where both sides carry it and
+    it cancels. Knowing the import cost is what makes that visible.
+    """
+
+    @property
+    def import_cost(self) -> int | None:
+        """What this workload's module costs merely to import."""
+        if self.empty_baseline is None:
+            return None
+        return self.baseline - self.empty_baseline
 
     @property
     def net(self) -> int:
@@ -381,7 +397,13 @@ python3 /tmp/harness/speedproof/verifyperf/inner.py measure /tmp/noop.py     >/d
   {{ echo "warm-up of the empty baseline failed" >&2; exit 3; }}
 python3 /tmp/harness/speedproof/verifyperf/inner.py measure /tmp/workload.py >/dev/null || \
   {{ echo "warm-up of the workload failed" >&2; exit 4; }}
+cat > /tmp/empty.py <<'EMPTY_EOF'
+def run():
+    return None
+EMPTY_EOF
+python3 /tmp/harness/speedproof/verifyperf/inner.py measure /tmp/empty.py >/dev/null || true
 echo "BASELINE $(run /tmp/noop.py)"
+echo "EMPTY $(run /tmp/empty.py)"
 for _ in $(seq {repetitions}); do echo "TOTAL $(run /tmp/workload.py)"; done
 """
     proc = _run_in_container(repo, script, platform=platform, image=image)
@@ -392,10 +414,13 @@ for _ in $(seq {repetitions}); do echo "TOTAL $(run /tmp/workload.py)"; done
         )
 
     baseline = 0
+    empty: int | None = None
     totals: list[int] = []
     for line in proc.stdout.decode().splitlines():
         if line.startswith("BASELINE "):
             baseline = int(line.split()[1])
+        elif line.startswith("EMPTY "):
+            empty = int(line.split()[1])
         elif line.startswith("TOTAL "):
             totals.append(int(line.split()[1]))
 
@@ -411,4 +436,5 @@ for _ in $(seq {repetitions}); do echo "TOTAL $(run /tmp/workload.py)"; done
         fingerprint=fingerprint,
         repetitions=len(totals),
         raw_totals=tuple(totals),
+        empty_baseline=empty,
     )
