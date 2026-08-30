@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
 
+from speedproof.corpus.build import build, needs_build, share_artefacts
 from speedproof.corpus.checkout import CheckoutError, materialise, release
 from speedproof.corpus.coverage import collect
 from speedproof.corpus.relevance import Selection, select_workloads
@@ -158,6 +159,12 @@ def run_task(
         return result
 
     try:
+        if needs_build(task.repo):
+            # Once, in the base tree, then shared: the patch touches no
+            # compiled source, so both trees want the same artefacts.
+            build(task.repo, trees.base, image=image, platform=platform)
+            share_artefacts(trees.base, trees.patched)
+
         benchmarks = discover(trees.base, task.benchmark_files)
         result.workloads_considered = len(benchmarks)
         if not benchmarks:

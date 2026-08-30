@@ -55,3 +55,40 @@ def test_a_result_line_shows_the_reason_when_there_are_none():
     assert "no workload reaches it" in result(
         Outcome.NO_WORKLOAD, detail="no workload reaches it"
     ).line()
+
+
+def test_only_projects_that_need_building_are_built():
+    """Most projects are Python and importing them is enough."""
+    from speedproof.corpus.build import needs_build
+
+    assert needs_build("pandas-dev/pandas")
+    assert not needs_build("pypa/packaging")
+
+
+def test_every_build_recipe_proves_it_produced_something():
+    """An editable install arranges import hooks without compiling anything and
+    still exits zero, which is how a pandas build once appeared to take
+    twenty-seven seconds. Each recipe carries a check that imports the
+    compiled artefact."""
+    from speedproof.corpus.build import BUILD_RECIPES
+
+    for repo, (command, check) in BUILD_RECIPES.items():
+        assert command.strip(), repo
+        assert "import" in check, f"{repo} has no post-build check"
+
+
+def test_artefacts_are_shared_rather_than_rebuilt(tmp_path):
+    """The patch touches no compiled source, so both trees want the same
+    artefacts and building twice would double the corpus cost for nothing."""
+    from speedproof.corpus.build import share_artefacts
+
+    base, patched = tmp_path / "base", tmp_path / "patched"
+    (base / "pkg" / "_libs").mkdir(parents=True)
+    patched.mkdir()
+    (base / "pkg" / "_libs" / "hashtable.so").write_bytes(b"\x7fELF")
+    (base / "pkg" / "module.py").write_text("x = 1")
+
+    assert share_artefacts(base, patched) == 1
+    assert (patched / "pkg" / "_libs" / "hashtable.so").read_bytes() == b"\x7fELF"
+    # Python is not copied: the patched tree has its own, and that is the point.
+    assert not (patched / "pkg" / "module.py").exists()
