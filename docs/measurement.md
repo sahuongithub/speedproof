@@ -210,3 +210,24 @@ This is the same principle as the thin wrapper, one level up. There, the
 runner's own imports had to be small because their *variance* landed on the net
 figure. Here, the benchmark module's imports can be arbitrarily large so long
 as they appear identically on both sides of the subtraction.
+
+## The agent's workspace
+
+The agent edits its own tree, never the corpus checkout. Three separate reasons,
+and the third is the one that matters: a failed run would otherwise leave the
+tree modified so the next task starts from something other than the commit it
+names; two tasks could not run at once; and an agent editing a file the harness
+later reads has, in a small way, reached the thing that judges it.
+
+The copy is made with hard links, so it costs no new space at all -- measured on
+a corpus tree, the tree alone and the tree plus its clone both come to 8 MB --
+and takes under half a second. That matters because a built pandas checkout runs
+to hundreds of megabytes and the agent may touch three files in it.
+
+Breaking the link on write is the part that has to be right. Opening a
+hard-linked file and writing to it modifies every name that file has, including
+the corpus's own, silently and with no error, corrupting subsequent measurements
+rather than failing them. Every write therefore goes to a new file which is
+renamed into place, so the original is untouched by construction rather than by
+care. Writes to the generated workload, to git metadata, or to any path
+resolving outside the workspace are refused.
