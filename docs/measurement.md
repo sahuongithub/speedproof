@@ -132,3 +132,40 @@ wrapped in C and reached through ctypes — which is why this is not the default
 
 The shim is a no-op outside Valgrind, so a workload written against it runs
 normally during development.
+
+## Cross-architecture result
+
+The suite was run natively on both architectures: arm64 in a container on an
+Apple M1, and x86_64 on a shared GitHub-hosted runner (AMD EPYC 7763, Azure,
+kernel 6.17). The runner is noisy, shared, and entirely outside the author's
+control, which is the point.
+
+| | arm64 | x86_64 | difference |
+| --- | ---: | ---: | ---: |
+| baseline, net instructions | 95,363,971 | 104,849,717 | +9.9% |
+| candidate, net instructions | 2,511,929 | 2,754,627 | +9.7% |
+| work removed | 97.37% | 97.37% | +0.01 pp |
+
+Three things hold, and each is worth stating separately.
+
+**Counts are not portable.** The same source needs about ten per cent more
+instructions on x86_64 than on arm64. This is expected — different instruction
+sets do the same work in a different number of steps — and it is why a
+`Fingerprint` refuses a comparison whose two sides came from different
+machines.
+
+**Ratios are portable.** The fraction of work removed agrees to within a
+hundredth of a percentage point, because the architectural difference is
+common to both sides of the comparison and divides out.
+
+**Verdicts are portable.** All four cases, one genuine improvement and three
+cheats, received the same verdict on both architectures.
+
+**Checksums are identical.** The canonical encoding depends only on the values
+computed, so correctness transfers exactly across architectures even though
+counts do not.
+
+The determinism claim also survived contact with shared infrastructure: running
+the entire suite twice on the same runner returned identical counts for every
+case. A noisy machine changes how long the measurement takes and not what it
+reports.
