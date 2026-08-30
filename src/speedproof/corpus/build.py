@@ -25,10 +25,19 @@ from speedproof.verifyperf.session import install_cleanup, label_args
 #: take twenty-seven seconds.
 BUILD_RECIPES: dict[str, tuple[str, str]] = {
     "pandas-dev/pandas": (
-        "pip install --no-build-isolation -e . 2>&1 | tail -2",
+        # A normal install, not an editable one. Editable mode under
+        # meson-python arranges import hooks and compiles nothing, exiting
+        # zero, which is how a pandas build once appeared to take
+        # twenty-seven seconds. The compiled artefacts are lifted back into
+        # the tree afterwards so the tree stays self-contained: its own Python,
+        # the build's extensions.
+        "pip install --no-build-isolation . 2>&1 | tail -2",
         "import pandas, pandas._libs.hashtable",
     ),
 }
+
+#: Where an installed package lands, so its compiled parts can be recovered.
+_SITE_PACKAGES = "/usr/local/lib/python3.12/site-packages"
 
 #: Files a build leaves behind that the other tree needs.
 _ARTEFACT_SUFFIXES = (".so", ".pyd", ".dylib")
@@ -52,11 +61,22 @@ def build(
     command, check = recipe
     install_cleanup()
 
+    package = repo.split("/")[-1]
     script = f"""
 set -e
-cd /work
+cp -r /work /tmp/build && cd /tmp/build
 {command}
+cd /tmp
 python3 -c "{check}" || {{ echo "BUILD_PRODUCED_NOTHING" >&2; exit 9; }}
+# Lift the compiled extensions back into the tree, so the tree carries its own
+# Python and the build's artefacts and nothing has to be installed to use it.
+cd {_SITE_PACKAGES}/{package}
+find . -name '*.so' -o -name '*.pyd' | while read -r f; do
+  mkdir -p "/work/{package}/$(dirname "$f")"
+  cp "$f" "/work/{package}/$f"
+done
+python3 -c "import sys; sys.path.insert(0, '/work'); {check}" \
+  || {{ echo "ARTEFACTS_DO_NOT_WORK_IN_TREE" >&2; exit 10; }}
 echo BUILD_OK
 """
     proc = subprocess.run(
@@ -78,6 +98,11 @@ echo BUILD_OK
             detail = (
                 "the build exited successfully but the compiled extension "
                 "could not be imported"
+            )
+        elif b"ARTEFACTS_DO_NOT_WORK_IN_TREE" in proc.stderr:
+            detail = (
+                "the build succeeded but the extensions do not import from "
+                "the tree they were copied into"
             )
         raise MeasurementError(f"could not build {repo}:\n{detail}")
 
