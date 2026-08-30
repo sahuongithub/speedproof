@@ -210,3 +210,46 @@ packaging_bce44a178e   +3.01%   33,757,056 -> 32,740,814 instructions
 The commit is `perf: add __slots__ to token classes`. A maintainer made that
 change believing it was faster; the harness independently confirms it, to the
 instruction, with the outputs unchanged.
+
+## Compiled projects are affordable, and their suites are the right shape
+
+The first three sources were chosen for being pure Python, on the reasoning
+that a project shipping compiled extensions would be expensive to build and
+partly out of scope for an instruction count. Both halves of that turned out to
+be weaker than they sounded.
+
+**The suites are what matters, and pandas has the best of any project
+examined.** Its `asv_bench/benchmarks/` holds 39 modules named for the parts of
+the library they exercise — `groupby.py`, `join_merge.py`, `indexing.py`,
+`strings.py`. sympy, by contrast, offers eleven broad functions over a library
+of thousands of modules, which is why every sympy task measured so far reports
+that no workload reaches the change. Suite *density* addresses the dominant
+failure mode directly in a way that suite *maturity* alone does not.
+
+**The build is affordable.** Measured in the measurement container:
+
+| | Seconds |
+| --- | ---: |
+| Build dependencies | 21 |
+| Compiling pandas (Cython, meson, ninja) | **225** |
+
+Under four minutes, and only once per task: of the 400 most recent optimisation
+candidates, **255 touch only Python files**, so the base and patched trees share
+identical compiled artefacts and a single build serves both.
+
+**What is genuinely out of scope is narrower than "compiled".** Callgrind counts
+instructions retired in C as readily as in Python, so a Python-level change that
+avoids a copy is measured correctly. The real limitation is that array
+operations are often bound by memory bandwidth rather than by instruction
+count, so an instruction count will *understate* such an optimisation. That is a
+caveat about the character of the workload, not about whether the project
+compiles, and it belongs alongside the other entries in the validity boundary.
+
+### A build that was not a build
+
+The first attempt reported a pandas build in 27 seconds, which would have been
+remarkable. It was an editable install: meson-python arranged its import hooks
+and never compiled anything, so the package imported far enough to fail on a
+missing extension module. The lesson is small and general — a build step that
+exits zero has not necessarily built anything, and the check that catches it is
+importing the compiled artefact and calling it.
