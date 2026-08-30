@@ -67,10 +67,19 @@ class MiningReport:
 
 
 def _git(*args: str, cwd: Path) -> str:
+    """Run git and decode leniently.
+
+    A long-lived repository will contain commit messages that are not valid
+    UTF-8 -- sympy has one at around eight megabytes into its log. Decoding
+    strictly means one such byte ends the mining run for the whole project, so
+    undecodable bytes are replaced rather than raised on.
+    """
     proc = subprocess.run(
-        ["git", *args], cwd=cwd, capture_output=True, text=True, timeout=600
+        ["git", *args], cwd=cwd, capture_output=True, timeout=600
     )
-    return proc.stdout if proc.returncode == 0 else ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.decode("utf-8", "replace")
 
 
 def _suite_first_seen(clone: Path, benchmark_dir: str) -> str | None:
