@@ -78,3 +78,20 @@ def test_an_arm_names_itself_by_what_it_was_given():
     assert '"agent" if use_profile else "agent_no_profile"' in inspect.getsource(
         arms.run_agent
     )
+
+
+def test_every_arm_records_what_it_tried_even_when_refused():
+    """A trajectory that says 'no change was produced' when a change was
+    produced has lost the evidence a reader most wants."""
+    source = inspect.getsource(arms.run_one_shot)
+    # the failure path builds a trajectory too
+    before, _, after = source.partition("except (EditError, WorkspaceError)")
+    assert "trajectory" in after.split("return result")[0]
+
+
+def test_the_control_records_every_attempt_not_only_the_winner():
+    """The convention requires all rollouts and the selection rule, not the
+    chosen one alone."""
+    source = inspect.getsource(arms.run_best_of)
+    assert "attempts_made.append" in source
+    assert '"rounds": attempts_made' in source

@@ -123,6 +123,12 @@ def run_one_shot(
             apply_edits(workspace, target, parse_edits(reply))
         except (EditError, WorkspaceError) as exc:
             result.rejected = str(exc).splitlines()[0][:90]
+            result.trajectory = {
+                "arm": result.arm,
+                "exchanges": [{"round": 1, "prompt": prompt, "reply": reply}],
+                "rounds": [{"round": 1, "rejected": result.rejected}],
+                "stopped_because": result.rejected,
+            }
             return result
 
         result.patch = workspace.diff()
@@ -133,6 +139,15 @@ def run_one_shot(
         result.trajectory = {
             "arm": result.arm,
             "exchanges": [{"round": 1, "prompt": prompt, "reply": reply}],
+            "rounds": [{
+                "round": 1,
+                "patch": result.patch,
+                "net_ir": verdict.net_ir,
+                "import_cost": verdict.import_cost,
+                "equivalent": verdict.equivalent,
+                "rejected": verdict.rejected,
+            }],
+            "stopped_because": "one attempt, by design",
         }
     return result
 
@@ -207,6 +222,7 @@ def run_best_of(
         return result
 
     exchanges = []
+    attempts_made: list[dict] = []
     scored: list[tuple[int, str, str]] = []
     for attempt in range(1, attempts + 1):
         with Workspace.clone(prepared.trees.base) as workspace:
@@ -228,10 +244,20 @@ def run_best_of(
             patch = workspace.diff()
             verdict = judge(workspace)
             result.measurements += 1
+            attempts_made.append({
+                "round": attempt, "patch": patch, "net_ir": verdict.net_ir,
+                "import_cost": verdict.import_cost,
+                "equivalent": verdict.equivalent, "rejected": verdict.rejected,
+            })
             if verdict.net_ir is not None and verdict.rejected is None:
                 scored.append((verdict.net_ir, patch, reply))
 
-    result.trajectory = {"arm": result.arm, "exchanges": exchanges}
+    result.trajectory = {
+        "arm": result.arm,
+        "exchanges": exchanges,
+        "rounds": attempts_made,
+        "stopped_because": f"{len(exchanges)} independent attempts, by design",
+    }
     if not scored:
         result.rejected = "no attempt was accepted"
         return result
