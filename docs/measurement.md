@@ -261,3 +261,42 @@ This is the failure that the surveyed literature reports as the most common
 by a wide margin: of eighteen hacks found in one manual review, fourteen were
 caching or persistent state, and import-time effects are noted as surviving
 even harnesses that run each repetition in a fresh process.
+
+## Scoring an arm against the person who did it first
+
+The obvious score is whether an arm beat a threshold, and on a corpus this size
+it cannot work. Simulating the paired test a binary outcome requires: at ten
+tasks, against a true effect where one arm wins outright on 30% of tasks and the
+other on 5%, the chance of detecting it is **0.04**. At twenty tasks, 0.32.
+Running the experiment more carefully does not rescue a design whose answer is a
+coin flip.
+
+So each arm is scored continuously, against the maintainer's own patch:
+
+    expert_fraction = log(base / arm) / log(base / human)
+
+the share of the expert's instruction reduction that the arm achieved. One is
+parity with the person who knew the codebase; above one means it did better,
+which happens and is reported rather than clipped. The log matters — a ratio of
+raw counts would let a single fifty-fold win dominate a corpus where the arm
+usually finds nothing, and the headline would then be describing that one task.
+
+Three consequences follow, and each is a rule rather than a preference.
+
+**A task whose expert patch removed almost nothing cannot score anything.** The
+denominator is near zero and the result is meaningless in either direction, so
+the task is excluded rather than allowed to shout.
+
+**Arms are compared paired, on the tasks both scored.** They see the same tasks,
+trees and model, so their scores are strongly correlated; comparing unpaired
+means discards that correlation and widens the interval for nothing.
+
+**The error is clustered by repository.** Tasks from one project share a build,
+a house style and often the same hot loops, so they are not independent draws.
+Treating them as independent has been measured to understate the error more than
+threefold, which is the difference between a result that is not there and one
+that appears to be.
+
+And the minimum detectable effect is reported beside the result, not after it. A
+corpus that cannot resolve the difference an arm claims has not failed to find
+it — it was never able to.
