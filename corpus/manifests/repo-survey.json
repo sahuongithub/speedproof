@@ -1,0 +1,68 @@
+{
+ "repositories": [
+  {
+   "repo": "tobymao/sqlglot",
+   "usable": true,
+   "suite_first_seen": "2021-07-24",
+   "timed_methods": 1,
+   "perf_signal": 42,
+   "note": ""
+  },
+  {
+   "repo": "networkx/networkx",
+   "usable": true,
+   "suite_first_seen": "2023-08-20",
+   "timed_methods": 58,
+   "perf_signal": 21,
+   "note": ""
+  },
+  {
+   "repo": "pypa/packaging",
+   "usable": true,
+   "suite_first_seen": "2026-03-07",
+   "timed_methods": 20,
+   "perf_signal": 15,
+   "note": ""
+  },
+  {
+   "repo": "Textualize/rich",
+   "usable": true,
+   "suite_first_seen": "2022-03-10",
+   "timed_methods": 32,
+   "perf_signal": 12,
+   "note": ""
+  },
+  {
+   "repo": "xdslproject/xdsl",
+   "usable": true,
+   "suite_first_seen": "2023-03-28",
+   "timed_methods": 60,
+   "perf_signal": 11,
+   "note": ""
+  },
+  {
+   "repo": "python-attrs/attrs",
+   "usable": false,
+   "suite_first_seen": "2024-07-18",
+   "timed_methods": 0,
+   "perf_signal": 4,
+   "note": "benchmarks define no timed methods"
+  },
+  {
+   "repo": "more-itertools/more-itertools",
+   "usable": false,
+   "suite_first_seen": null,
+   "timed_methods": 0,
+   "perf_signal": 0,
+   "note": "no benchmark directory"
+  },
+  {
+   "repo": "pyparsing/pyparsing",
+   "usable": false,
+   "suite_first_seen": null,
+   "timed_methods": 0,
+   "perf_signal": 0,
+   "note": "no benchmark directory"
+  }
+ ]
+}

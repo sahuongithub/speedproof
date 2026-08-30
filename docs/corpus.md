@@ -93,3 +93,45 @@ only the change being measured.
 
 Blobs are fetched on demand. The history is wanted for its commits, not for
 every version of every file.
+
+## Choosing repositories, and getting it wrong twice
+
+Applying the stricter rule to eight candidates:
+
+| Repository | Verdict | Suite since | Timed methods | Perf signal |
+| --- | --- | --- | ---: | ---: |
+| tobymao/sqlglot | usable | 2021-07 | 1 | 42 |
+| networkx/networkx | usable | 2023-08 | 58 | 21 |
+| pypa/packaging | usable | 2026-03 | 20 | 15 |
+| Textualize/rich | usable | 2022-03 | 32 | 12 |
+| xdslproject/xdsl | usable | 2023-03 | 60 | 11 |
+| python-attrs/attrs | rejected | 2024-07 | 0 | 4 |
+| more-itertools | rejected | — | 0 | 0 |
+| pyparsing | rejected | — | 0 | 0 |
+
+The perf-signal column is a prefilter count and not a count of genuine
+optimisations. Matching keywords in commit subjects runs at roughly ten to
+thirty per cent precision, because a project whose subject matter is
+optimisation discusses optimising constantly without changing its own speed.
+Around a hundred candidates is the right order of magnitude to start from for a
+target of fifteen to twenty-five validated tasks.
+
+The first version of this survey reported two usable repositories rather than
+five, and both extra rejections were the gate's fault:
+
+**Reading a checked-in file is not reaching outside the process.** `open(` was
+treated as disqualifying, which rejected a repository for loading the sample
+data sitting beside its own benchmarks. A fixed file inside a sealed container
+is as deterministic as a string literal. What cannot be sealed is *discovering*
+inputs at run time, or calling another program — so the check now names
+`glob`, `subprocess`, `os.listdir` and their relatives, and leaves plain reads
+alone.
+
+**Recognising one benchmark convention rejects projects that use another.** The
+check looked only for asv's `time_*` naming and so scored a repository with
+forty-two performance commits as having no benchmarks at all, because it uses
+pyperf. It now recognises asv, pytest-benchmark and pyperf.
+
+Both are the same mistake in different clothes, and it is the mistake this
+project is about: a gate tuned to reject will reject things it should not, and
+the only way to know is to check its refusals as carefully as its acceptances.
