@@ -28,6 +28,7 @@ from speedproof.verifyperf.callgrind import (
     probe_environment,
 )
 from speedproof.verifyperf.fingerprint import Fingerprint
+from speedproof.verifyperf.session import install_cleanup, label_args
 
 
 class Verdict(str, Enum):
@@ -203,8 +204,10 @@ cp /work/{rel} /tmp/workload.py
 export PYTHONPATH=/tmp/harness:/work
 python3 /tmp/harness/speedproof/verifyperf/inner.py {mode} /tmp/workload.py
 """
+    install_cleanup()
     proc = subprocess.run(
         [_docker(), "run", "--rm", "-i", "--network", "none"]
+        + label_args()
         + (["--platform", platform] if platform else [])
         + [
             "-v", f"{repo}:/work:ro",

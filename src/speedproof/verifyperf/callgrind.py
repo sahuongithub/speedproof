@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from speedproof.verifyperf.fingerprint import Fingerprint
+from speedproof.verifyperf.session import install_cleanup, label_args
 
 #: The runner and the encoder are shipped into the container as text rather
 #: than mounted. The harness then imposes nothing on the layout of the tree
@@ -257,8 +258,10 @@ def _run_in_container(
     platform: str | None = None,
     image: str | None = None,
 ) -> subprocess.CompletedProcess:
+    install_cleanup()
     return subprocess.run(
         [_docker(), "run", "--rm", "-i", "--network", "none"]
+        + label_args()
         + (["--platform", platform] if platform else [])
         + [
             "-v", f"{repo}:/work:ro",
