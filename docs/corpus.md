@@ -52,6 +52,37 @@ because whether the metric can see the benefit depends on what the change did.
 Removing a layer of indirection shows up as fewer instructions; improving cache
 locality without removing work does not show up at all.
 
+## A repository having a benchmark suite is not enough
+
+The obvious way to choose repositories is to look for one that ships a
+benchmark suite, since that supplies workloads nobody involved in the
+measurement wrote. It is the rule the published mining pipelines use, and it is
+not sufficient.
+
+A suite has to exist *at the commit each task is based on*, and it has to be
+callable in memory. Checking that for xdsl produced an uncomfortable number:
+
+| | Tasks |
+| --- | ---: |
+| Have some benchmark directory at the base commit | 96 |
+| Have the modern suite, with workloads built in memory | **2** |
+| Have only the older scripts, which walk files on disk and shell out to an external tool | 94 |
+
+The suite was rewritten in 2025. Before that it was a command-line script that
+parses whatever `.mlir` files it is pointed at, which is not a workload that can
+be measured in a sealed container without also measuring the filesystem.
+
+So the selection rule is stricter than "the project benchmarks itself":
+
+> A task is usable when the project's own benchmark suite exists at that task's
+> base commit, runs in memory, and exercises the code the patch changes.
+
+The third clause matters as much as the first two. Checking which tasks patch
+code that the lexer, parser or printer benchmarks actually execute found two of
+ninety-three. A workload that does not run the changed lines measures nothing,
+however carefully it is measured, so benchmark selection has to be driven by
+coverage rather than by names.
+
 ## Materialising a task
 
 Both sides are produced as git worktrees off one local clone, so the before and

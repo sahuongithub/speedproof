@@ -24,3 +24,12 @@ Each cheat is a patch that a harness measuring only elapsed time would accept.
 | Fast but wrong answer | not_equivalent | Canonical hashes differ. Correctness is checked before anything else. |
 | Cached across runs | regressed | A fresh process per measurement makes the cache worthless; the lookup costs 5.5% more. |
 | Work deferred to a generator | regressed | Forcing the result inside the measured region puts the work back, plus generator overhead: 67.6% more. |
+
+## Corpus construction
+
+| Stage | What was tried, and why | Evidence | Decision |
+| --- | --- | --- | --- |
+| Repository selection by benchmark suite | Follow the published rule: pick repositories that ship a benchmark suite, so workloads come from the project rather than from us. | xdsl qualifies, and 96 of its 100 retrieved tasks are in scope with 93 applying cleanly. | Kept as a first filter. |
+| Assuming the suite is usable | Take "the repository has a benchmark suite" to mean the tasks have workloads. | **Only 2 of 96 have a suite that runs in memory.** The other 94 have a command-line script that walks `.mlir` files on disk and shells out to an external tool; the suite was rewritten in 2025. | Rejected. A suite has to exist at the base commit of each task and be callable without a filesystem, not merely exist in the project today. |
+| Matching benchmarks to patches by name | Assume the lexer, parser and printer benchmarks cover changes to lexer, parser and printer code. | 2 of 93 tasks patch source those benchmarks name-match. | Rejected. Selection has to be driven by coverage: a workload that does not execute the changed lines measures nothing, however well it is measured. |
+| Second repository | `pypa/packaging`: pure Python, 1.6 MB, and it already pins `PYTHONHASHSEED=0` in its own benchmark configuration. | Benchmark suite added 2026-03; 22 `perf:` commits after that date, 15 of them changing the library rather than the test harness. | Adopted. The surviving commits are exactly the kind this metric reads well: adding `__slots__`, precompiling a pattern, caching a lookup. |
