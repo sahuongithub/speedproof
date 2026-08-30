@@ -108,29 +108,70 @@ class Control:
         return self.truth is Truth.BROKEN
 
 
+class Judgement(str, Enum):
+    """How a control's fate was decided.
+
+    The distinction is not bookkeeping. Schuler and Zeller (ICST 2011) removed
+    every assertion from seven test suites and the mutation score only fell to
+    43%, because mutants were still being killed by the runtime crashing rather
+    than by anything checking the answer. A tool that decides kill or survive
+    from an exit status alone cannot tell a gate that works from one that does
+    not, so the two outcomes are recorded separately here and only ``REJECTED``
+    counts as the gate having done its job.
+    """
+
+    ACCEPTED = "accepted"
+    """The gate compared the outputs and found them equal."""
+
+    REJECTED = "rejected"
+    """The gate compared the outputs and found them different."""
+
+    CRASHED = "crashed"
+    """The variant did not run to completion, so the gate never judged it."""
+
+
 @dataclass(frozen=True)
 class ControlOutcome:
     """What the gate said about one control, and whether that was right."""
 
     control: Control
-    rejected: bool
+    judgement: Judgement
     detail: str = ""
 
     @property
+    def rejected(self) -> bool:
+        return self.judgement is Judgement.REJECTED
+
+    @property
+    def judged(self) -> bool:
+        """Whether the gate actually rendered a verdict on this control."""
+        return self.judgement is not Judgement.CRASHED
+
+    @property
     def correct(self) -> bool:
+        """A crash is never correct: nothing was checked.
+
+        Counting a crash as a rejection is how a gate that checks nothing
+        earns a passing score.
+        """
+        if not self.judged:
+            return False
         return self.rejected == self.control.must_be_rejected
 
     @property
     def failure_kind(self) -> str | None:
-        """How the gate was wrong, in the two directions that differ.
+        """How the gate was wrong, in the three ways that differ.
 
         Missing a broken variant means the gate is unsound: it would pass a
         wrong optimisation. Rejecting an equivalent one means it is
         incomplete: it would reject a real optimisation and cost a genuine
-        result. Both are failures and they are not the same failure.
+        result. A crash means the control never tested anything, which is a
+        defect in the control rather than a measurement of the gate.
         """
         if self.correct:
             return None
+        if not self.judged:
+            return "unjudged"
         return "unsound" if self.control.must_be_rejected else "incomplete"
 
 
@@ -149,8 +190,17 @@ class GateReport:
         return tuple(o for o in self.outcomes if not o.control.must_be_rejected)
 
     @property
+    def unjudged(self) -> tuple[ControlOutcome, ...]:
+        """Controls the gate never rendered a verdict on."""
+        return tuple(o for o in self.outcomes if not o.judged)
+
+    @property
     def soundness(self) -> float:
-        """Fraction of broken variants the gate rejected."""
+        """Fraction of broken variants the gate rejected *by comparing them*.
+
+        Crashes stay in the denominator. Dropping them would let a control set
+        that mostly fails to run report a high score.
+        """
         broken = self.broken
         return sum(o.correct for o in broken) / len(broken) if broken else 1.0
 
@@ -171,10 +221,15 @@ class GateReport:
         broken, equivalent = self.broken, self.equivalent
         lines = [
             f"soundness    {sum(o.correct for o in broken)}/{len(broken)} "
-            f"broken variants rejected",
+            f"broken variants rejected by comparison",
             f"completeness {sum(o.correct for o in equivalent)}/{len(equivalent)} "
             f"equivalent variants accepted",
         ]
+        if self.unjudged:
+            lines.append(
+                f"unjudged     {len(self.unjudged)} control(s) did not run, so "
+                f"the gate never checked them"
+            )
         for outcome in self.outcomes:
             if not outcome.correct:
                 lines.append(

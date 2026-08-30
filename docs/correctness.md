@@ -102,6 +102,36 @@ That is the argument for keeping the controls permanently rather than checking
 the gate once. The gate was correct throughout; the evidence for it was not,
 and only running it showed which.
 
+### A crash is not a rejection
+
+Every mutation tool decides whether a mutant was killed from the exit status of
+whatever it ran. That makes an important failure invisible: a variant that
+crashes looks exactly like a variant that was caught.
+
+Schuler and Zeller (ICST 2011) measured how much this matters. They removed
+*every assertion* from seven Java test suites — leaving suites that check
+nothing whatsoever — and the mutation score fell only to **43%**. The remaining
+kills came from what they call the implicit checks of the runtime system: the
+program crashed, and the tool recorded a success.
+
+So the three outcomes are recorded separately here, and only a comparison
+counts:
+
+| Outcome | Meaning |
+| --- | --- |
+| accepted | the gate compared the outputs and found them equal |
+| rejected | the gate compared the outputs and found them different |
+| unjudged | the variant did not run, so nothing was compared |
+
+An unjudged control is never correct, whatever it was supposed to be, and it
+stays in the denominator. Both rules matter. Crediting a crash as a rejection
+is how a gate that checks nothing earns a passing score; dropping crashes from
+the denominator instead would let a control set that mostly fails to run report
+well on the handful that survive.
+
+This was a real defect in the first version of this code, which recorded any
+variant that failed to run as rejected.
+
 ### The ceiling this design has, stated plainly
 
 An oracle that compares returned values cannot see a fault that corrupts state

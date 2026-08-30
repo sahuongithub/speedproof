@@ -56,7 +56,11 @@ jobs:
           echo "cpu         : $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs || echo unknown)"
           echo "docker      : $(docker --version)"
 
-      - name: Run the comparison suite
+      - name: Validate the correctness gate, then run the comparison suite
+        # The gate runs against its permanent controls first and the job fails
+        # if it misjudges any of them, in either direction. A control set that
+        # is not re-run on every change to the harness, the encoder or the gate
+        # is documentation rather than a control.
         run: uv run python -m speedproof.verifyperf.cli --json eval/runs/${{ matrix.arch }}.json
 
       - name: Confirm the same measurement twice gives the same number
@@ -64,7 +68,7 @@ jobs:
         # asserted here rather than assumed. A shared CI runner is noisy, and
         # that is the point: instruction counts should not care.
         run: |
-          uv run python -m speedproof.verifyperf.cli --json /tmp/again.json
+          uv run python -m speedproof.verifyperf.cli --skip-controls --json /tmp/again.json
           uv run python - <<'PY'
           import json, sys
           a = json.load(open("eval/runs/${{ matrix.arch }}.json"))["cases"]

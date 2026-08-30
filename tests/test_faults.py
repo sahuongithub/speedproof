@@ -6,13 +6,16 @@ from speedproof.hackguard.faults import (
     ControlOutcome,
     FaultClass,
     GateReport,
+    Judgement,
     Truth,
 )
 
 
-def outcome(truth, rejected, name="c"):
+def outcome(truth, rejected=None, name="c", judgement=None):
+    if judgement is None:
+        judgement = Judgement.REJECTED if rejected else Judgement.ACCEPTED
     return ControlOutcome(
-        Control(name, None, truth, "x.py", "because"), rejected
+        Control(name, None, truth, "x.py", "because"), judgement
     )
 
 
@@ -68,3 +71,33 @@ def test_fault_classes_cover_optimisation_specific_faults():
     for name in ("PRECISION_WEAKENED", "CACHE_KEY_INCOMPLETE",
                  "COPY_BECAME_ALIAS", "ORDER_UNSTABLE"):
         assert hasattr(FaultClass, name)
+
+
+def test_a_crash_is_not_a_rejection():
+    """Schuler and Zeller removed every assertion from seven suites and the
+    mutation score only fell to 43%, because crashes were being counted as
+    kills. A control that does not run has not been checked."""
+    o = outcome(Truth.BROKEN, judgement=Judgement.CRASHED)
+    assert not o.judged
+    assert not o.correct
+    assert o.failure_kind == "unjudged"
+
+
+def test_crashes_stay_in_the_denominator():
+    """Dropping them would let a control set that mostly fails to run score
+    well on the few that survive."""
+    report = GateReport((
+        outcome(Truth.BROKEN, rejected=True),
+        outcome(Truth.BROKEN, judgement=Judgement.CRASHED),
+    ))
+    assert report.soundness == 0.5
+    assert len(report.unjudged) == 1
+    assert not report.passed
+
+
+def test_a_gate_that_only_crashes_scores_zero():
+    """The failure mode this distinction exists to prevent."""
+    report = GateReport(tuple(
+        outcome(Truth.BROKEN, judgement=Judgement.CRASHED) for _ in range(6)
+    ))
+    assert report.soundness == 0.0

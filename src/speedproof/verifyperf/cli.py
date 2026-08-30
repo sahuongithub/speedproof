@@ -60,6 +60,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--repetitions", type=int, default=5)
     parser.add_argument("--json", type=Path, help="write a machine-readable record here")
+    parser.add_argument(
+        "--skip-controls",
+        action="store_true",
+        help="do not validate the correctness gate first (not for CI)",
+    )
     args = parser.parse_args(argv)
 
     repo = args.repo.resolve()
@@ -67,6 +72,46 @@ def main(argv: list[str] | None = None) -> int:
     failures = 0
 
     print(f"speedproof  repo={repo}  host={_platform.machine()}", file=sys.stderr)
+
+    # The gate is validated before it is used. A correctness check that has
+    # never rejected anything is indistinguishable from no check, so the
+    # controls run first and a failure here stops everything: any measurement
+    # taken with an unvalidated gate is unsupported.
+    control_record = None
+    if not args.skip_controls:
+        from speedproof.hackguard.controls import validate_gate
+
+        report = validate_gate(repo, platform=args.platform)
+        print(report.summary())
+        control_record = {
+            "soundness": report.soundness,
+            "completeness": report.completeness,
+            "passed": report.passed,
+            "controls": [
+                {
+                    "name": o.control.name,
+                    "truth": o.control.truth.value,
+                    "fault": o.control.fault.value if o.control.fault else None,
+                    "rejected": o.rejected,
+                    "correct": o.correct,
+                    "failure_kind": o.failure_kind,
+                }
+                for o in report.outcomes
+            ],
+        }
+        if not report.passed:
+            print(
+                "\nthe correctness gate did not judge its own controls "
+                "correctly; no measurement below would be supported",
+                file=sys.stderr,
+            )
+            if args.json:
+                args.json.parent.mkdir(parents=True, exist_ok=True)
+                args.json.write_text(
+                    json.dumps({"gate": control_record, "cases": []}, indent=2) + "\n"
+                )
+            return 1
+        print()
 
     for name, base, cand, expected in SUITE:
         result = compare(
@@ -104,7 +149,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)
-        args.json.write_text(json.dumps({"cases": records}, indent=2) + "\n")
+        args.json.write_text(
+            json.dumps({"gate": control_record, "cases": records}, indent=2) + "\n"
+        )
         print(f"\nwrote {args.json}", file=sys.stderr)
 
     print(f"\n{len(SUITE) - failures}/{len(SUITE)} cases agree with expectation")

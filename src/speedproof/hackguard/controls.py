@@ -9,6 +9,7 @@ from speedproof.hackguard.faults import (
     ControlOutcome,
     FaultClass,
     GateReport,
+    Judgement,
     Truth,
 )
 
@@ -81,12 +82,15 @@ def validate_gate(
     for control in CONTROLS:
         try:
             digest = _capture(tree, Path(control.source), "checksum", platform)
-            rejected = digest != reference
+            judgement = (
+                Judgement.REJECTED if digest != reference else Judgement.ACCEPTED
+            )
             detail = f"{digest[:12]} vs {reference[:12]}"
         except Exception as exc:
-            # A control that cannot run has not been judged, and counting it
-            # either way would be a guess.
-            rejected = True
-            detail = f"could not be evaluated: {exc}"
-        outcomes.append(ControlOutcome(control, rejected, detail))
+            # A variant that does not run has not been compared. Recording this
+            # as a rejection would credit the gate for a crash, which is how a
+            # gate that checks nothing earns a passing score.
+            judgement = Judgement.CRASHED
+            detail = f"did not run: {str(exc).splitlines()[0][:120]}"
+        outcomes.append(ControlOutcome(control, judgement, detail))
     return GateReport(tuple(outcomes))
