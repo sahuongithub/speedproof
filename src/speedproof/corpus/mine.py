@@ -30,10 +30,22 @@ from pathlib import Path
 from speedproof.corpus.task import Task
 
 #: Subjects that claim an optimisation. Conventional commits first, then the
-#: prefixes the scientific-Python projects use.
+#: uppercase prefixes the scientific-Python projects use -- pandas, numpy and
+#: scipy all write ``PERF:``.
 _PERF_SUBJECT = re.compile(
     r"^perf(\([^)]*\))?:"          # perf: / perf(scope):
-    r"|^(ENH|MAINT|PERF)\b.*\b(perf|speed|fast|optimi)",
+    r"|^PERF[:\s]"                  # PERF: as pandas and numpy write it
+    r"|^(ENH|MAINT)\b.*\b(perf|speed|fast|optimi)",
+    re.I,
+)
+
+#: Optimisations whose benefit an instruction count cannot see, recognised from
+#: the subject line so they are never mined in the first place. Valgrind
+#: serialises threads, so a change that genuinely scales across cores is
+#: recorded as a regression; the rest are excluded by the validity boundary.
+_OUT_OF_SCOPE_SUBJECT = re.compile(
+    r"\b(parallel|multithread|thread(ed|ing)?|nogil|concurren|simd|avx|sse|neon"
+    r"|vectori[sz])\b",
     re.I,
 )
 
@@ -42,11 +54,16 @@ _PERF_SUBJECT = re.compile(
 _HARNESS_SCOPE = re.compile(r"^perf\((tests?|ci|build|docs?)\)", re.I)
 
 
+class MiningError(Exception):
+    """Raised when a repository's history could not be read."""
+
+
 @dataclass(frozen=True)
 class MiningReport:
     """What the history offered, and what survived each filter."""
 
     commits_scanned: int = 0
+    out_of_scope: int = 0
     claimed_perf: int = 0
     library_only: int = 0
     after_suite: int = 0
@@ -57,6 +74,7 @@ class MiningReport:
         return "\n".join(
             [
                 f"  commits scanned          {self.commits_scanned:>6}",
+                f"  out of scope for Ir      {self.out_of_scope:>6}",
                 f"  claim an optimisation    {self.claimed_perf:>6}",
                 f"  change the library       {self.library_only:>6}",
                 f"  after the suite existed  {self.after_suite:>6}",
@@ -96,32 +114,66 @@ def mine(
     library_dir: str = "src/",
     benchmark_dir: str = "benchmarks",
     classification: str = "declared_optimisation",
+    python_only: bool = False,
+    since: str | None = None,
 ) -> tuple[list[Task], MiningReport]:
-    """Read a repository's history for changes it says are optimisations."""
+    """Read a repository's history for changes it says are optimisations.
+
+    ``since`` bounds how far back to look, as a date git understands. Bounding
+    is not only a speed measure: on a blobless clone, walking a long history
+    with file names attached needs tree objects the clone does not hold, and
+    git will try to fetch them. On pandas that failed outright after
+    sixty-nine seconds and returned nothing at all, which is a silent zero
+    rather than an error. A recent window is also the more useful one, since
+    those commits are likeliest to still build.
+    """
     suite_from = _suite_first_seen(clone, benchmark_dir)
-    scanned = claimed = library = after = single = 0
+    scanned = claimed = library = after = single = out_of_scope = 0
     tasks: list[Task] = []
 
-    log = _git("log", "--format=%H|%P|%ci|%s", cwd=clone).splitlines()
-    for line in log:
-        parts = line.split("|", 3)
+    # One pass, with the changed files inline. Asking git for each commit's
+    # files separately costs a process per candidate, which on a repository of
+    # pandas' size takes longer than the whole rest of the pipeline.
+    window = ["--since", since] if since else []
+    raw = _git(
+        "log", "--format=%x00%H|%P|%ci|%s", "--name-only", *window, cwd=clone
+    ).split("\x00")
+    if len(raw) <= 1:
+        raise MiningError(
+            "git returned no history. On a blobless clone this usually means "
+            "the walk needed tree objects the clone does not hold; bound it "
+            "with `since=`."
+        )
+    for record in raw:
+        if not record.strip():
+            continue
+        header, _, body = record.partition("\n")
+        parts = header.split("|", 3)
         if len(parts) != 4:
             continue
         sha, parents, date, subject = parts
+        changed = [f for f in body.split("\n") if f.strip()]
         scanned += 1
 
         if not _PERF_SUBJECT.search(subject) or _HARNESS_SCOPE.search(subject):
             continue
+        if _OUT_OF_SCOPE_SUBJECT.search(subject):
+            # Not a rejection of the change, only of this instrument's ability
+            # to judge it.
+            out_of_scope += 1
+            continue
         claimed += 1
 
-        changed = _git(
-            "show", "--stat", "--format=", "--name-only", sha, cwd=clone
-        ).split()
         touches_library = [f for f in changed if f.startswith(library_dir)]
         touches_only_library = touches_library and not any(
             f.startswith(("tests/", "docs/", ".github/")) for f in changed
         )
         if not touches_only_library:
+            continue
+        # When a project ships compiled extensions, a patch confined to Python
+        # leaves the compiled artefacts identical on both sides, so a single
+        # build serves the comparison.
+        if python_only and not all(f.endswith(".py") for f in touches_library):
             continue
         library += 1
 
@@ -167,6 +219,7 @@ def mine(
 
     return tasks, MiningReport(
         commits_scanned=scanned,
+        out_of_scope=out_of_scope,
         claimed_perf=claimed,
         library_only=library,
         after_suite=after,

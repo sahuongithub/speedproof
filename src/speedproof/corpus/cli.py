@@ -19,6 +19,28 @@ PROJECT_DEPENDENCIES = {
         "typing-extensions>=4.7,<5",
         "ordered-set==4.1.0",
     ),
+    # pandas is built from source in the image. Its build needs ninja and a
+    # toolchain; its runtime needs dateutil and pytz. Pinning them is what
+    # keeps an instruction count attributable to the code rather than to a
+    # dependency that moved underneath it.
+    "pandas-dev/pandas": (
+        "meson-python>=0.19,<1",
+        "meson>=1.2.3,<2",
+        "ninja",
+        "wheel",
+        "Cython>3.1.0,<4",
+        "numpy>=2.0",
+        "versioneer[toml]",
+        "python-dateutil",
+        "pytz",
+    ),
+}
+
+#: Projects that must be compiled before their benchmarks can run. The build
+#: happens once per task: every mined patch touches only Python, so the base
+#: and patched trees share the same compiled artefacts.
+PROJECT_BUILD = {
+    "pandas-dev/pandas": "pip install --no-build-isolation -e . >/dev/null 2>&1",
 }
 
 
