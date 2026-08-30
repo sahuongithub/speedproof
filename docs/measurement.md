@@ -94,3 +94,19 @@ anti-correlated one. Bytecode counting is not a usable substitute.
 These are self-generated numbers on a small sample and one architecture. They
 establish direction and identify the failure modes; they are not a substitute
 for a published study, and the write-up says so.
+
+## Running on more than one architecture
+
+Counts are reproducible within an architecture and are not portable between
+them: the instruction stream differs, and libraries that dispatch on detected
+CPU features may select different code paths. So a second architecture is used
+to check that *verdicts* agree, never that numbers match, and a `Fingerprint`
+refuses a comparison whose two sides came from different machines.
+
+One warning, learned by walking into it. `docker build --platform` does not
+fail when the daemon cannot honour it — without buildx configured it quietly
+produces an image for the host architecture instead. An amd64 image built this
+way on an arm64 host is an arm64 image with a misleading tag, and measuring
+with it would compare an architecture against itself and report perfect
+agreement. The builder now inspects what it actually produced and refuses to
+continue on a mismatch.

@@ -1,0 +1,125 @@
+name: verify
+
+# Every claim this project makes should survive being re-derived on hardware
+# the author does not control. The suite runs on x86_64 and, where the runner
+# is available, on arm64 as well; the two are compared for agreement on
+# verdicts, never on counts, because instruction counts are reproducible within
+# an architecture and are not portable between them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --extra dev
+      - run: uv run pytest -q
+
+  measure:
+    name: measure on ${{ matrix.arch }}
+    needs: unit
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          # Free arm64 runners are available to public repositories only.
+          # On a private repository this leg is skipped rather than failing.
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.arch == 'arm64' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - run: uv sync --extra dev
+
+      - name: Record the machine this ran on
+        run: |
+          echo "runner arch : $(uname -m)"
+          echo "kernel      : $(uname -r)"
+          echo "cpu         : $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs || echo unknown)"
+          echo "docker      : $(docker --version)"
+
+      - name: Run the comparison suite
+        run: uv run python -m speedproof.verifyperf.cli --json eval/runs/${{ matrix.arch }}.json
+
+      - name: Confirm the same measurement twice gives the same number
+        # Determinism is the property the whole project rests on, so it is
+        # asserted here rather than assumed. A shared CI runner is noisy, and
+        # that is the point: instruction counts should not care.
+        run: |
+          uv run python -m speedproof.verifyperf.cli --json /tmp/again.json
+          uv run python - <<'PY'
+          import json, sys
+          a = json.load(open("eval/runs/${{ matrix.arch }}.json"))["cases"]
+          b = json.load(open("/tmp/again.json"))["cases"]
+          bad = [
+              x["case"]
+              for x, y in zip(a, b)
+              if (x["baseline_net_ir"], x["candidate_net_ir"])
+              != (y["baseline_net_ir"], y["candidate_net_ir"])
+          ]
+          if bad:
+              print("counts changed between identical runs:", ", ".join(bad))
+              sys.exit(1)
+          print(f"all {len(a)} cases returned identical counts on a second run")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: measurements-${{ matrix.arch }}
+          path: eval/runs/${{ matrix.arch }}.json
+
+  agree:
+    name: architectures agree on verdicts
+    needs: measure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Compare verdicts across architectures
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, sys
+
+          runs = {}
+          for path in pathlib.Path("artifacts").rglob("*.json"):
+              runs[path.stem] = json.loads(path.read_text())["cases"]
+
+          if len(runs) < 2:
+              print(f"only {len(runs)} architecture reported; nothing to compare")
+              sys.exit(0)
+
+          names = sorted(runs)
+          reference = runs[names[0]]
+          failed = False
+          for case_index, case in enumerate(reference):
+              verdicts = {n: runs[n][case_index]["verdict"] for n in names}
+              same = len(set(verdicts.values())) == 1
+              failed |= not same
+              mark = "ok  " if same else "FAIL"
+              detail = ", ".join(f"{n}={v}" for n, v in verdicts.items())
+              print(f"{mark}  {case['case']}: {detail}")
+
+          print()
+          print("Counts are deliberately not compared: they are reproducible")
+          print("within an architecture and are not portable between them.")
+          sys.exit(1 if failed else 0)
+          PY

@@ -37,3 +37,17 @@ def test_image_digest_is_part_of_identity():
     other = Fingerprint(**{**BASE, "image_digest": "different0000000"})
     with pytest.raises(IncomparableEnvironments, match="image_digest"):
         Fingerprint(**BASE).assert_comparable(other)
+
+
+def test_architectures_are_never_silently_comparable():
+    """A cross-architecture comparison must fail loudly, not average away.
+
+    Counts are reproducible within an architecture and are not portable
+    between them, so agreement across architectures is asserted on verdicts
+    and never on numbers.
+    """
+    arm = Fingerprint(**BASE)
+    x86 = Fingerprint(**{**BASE, "arch": "x86_64"})
+    assert arm.digest != x86.digest
+    with pytest.raises(IncomparableEnvironments):
+        arm.assert_comparable(x86)

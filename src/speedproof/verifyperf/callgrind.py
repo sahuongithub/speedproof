@@ -37,6 +37,12 @@ BASE_IMAGE = (
 )
 IMAGE_TAG = "speedproof/measure:0.1.0"
 
+#: Architectures the harness knows how to measure on. Counts are reproducible
+#: within one of these and are not comparable between them: the instruction
+#: stream differs, and libraries that dispatch on detected CPU features may
+#: select different code paths.
+ARCHITECTURES = ("linux/arm64", "linux/amd64")
+
 _SUMMARY = re.compile(rb"^summary:\s+(\d+)", re.MULTILINE)
 _VG_VERSION = re.compile(r"valgrind-([\d.]+)")
 
@@ -131,12 +137,24 @@ def _docker() -> str:
     return exe
 
 
-def ensure_image(rebuild: bool = False) -> None:
+def image_tag(platform: str | None = None) -> str:
+    """Tag for the measurement image, kept separate per architecture."""
+    if platform is None:
+        return IMAGE_TAG
+    if platform not in ARCHITECTURES:
+        raise MeasurementError(
+            f"unknown platform {platform!r}; expected one of {ARCHITECTURES}"
+        )
+    return f"{IMAGE_TAG}-{platform.split('/')[-1]}"
+
+
+def ensure_image(rebuild: bool = False, platform: str | None = None) -> None:
     """Build the measurement image if it is not already present."""
     docker = _docker()
+    tag = image_tag(platform)
     if not rebuild:
         probe = subprocess.run(
-            [docker, "image", "inspect", IMAGE_TAG],
+            [docker, "image", "inspect", tag],
             capture_output=True,
         )
         if probe.returncode == 0:
@@ -151,7 +169,9 @@ ENV PYTHONHASHSEED=0 PYTHONDONTWRITEBYTECODE=0 PYTHON_JIT=0
 WORKDIR /work
 """
     build = subprocess.run(
-        [docker, "build", "-t", IMAGE_TAG, "-"],
+        [docker, "build"]
+        + (["--platform", platform] if platform else [])
+        + ["-t", tag, "-"],
         input=dockerfile.encode(),
         capture_output=True,
     )
@@ -161,17 +181,47 @@ WORKDIR /work
             + build.stderr.decode(errors="replace")[-2000:]
         )
 
+    if platform is not None:
+        _assert_image_architecture(tag, platform)
 
-def _run_in_container(repo: Path, script: str, timeout: int = 900) -> subprocess.CompletedProcess:
+
+def _assert_image_architecture(tag: str, platform: str) -> None:
+    """Confirm the image really is for the architecture that was requested.
+
+    ``docker build --platform`` does not fail when the daemon cannot honour it;
+    without buildx configured it quietly produces an image for the host
+    architecture instead. An unnoticed mismatch is worse than a build error,
+    because a cross-architecture comparison would then be comparing one
+    architecture against itself and reporting perfect agreement.
+    """
+    wanted = platform.split("/")[-1]
+    probe = subprocess.run(
+        [_docker(), "image", "inspect", tag, "--format", "{{.Architecture}}"],
+        capture_output=True,
+    )
+    built = probe.stdout.decode().strip()
+    if built != wanted:
+        raise MeasurementError(
+            f"asked for a {wanted} image and got {built}. The Docker daemon "
+            "ignored --platform, which it does silently when buildx is not "
+            "available. Measuring with this image would compare an "
+            "architecture against itself. Install buildx, or run the "
+            f"{wanted} measurements on {wanted} hardware."
+        )
+
+
+def _run_in_container(
+    repo: Path, script: str, timeout: int = 900, platform: str | None = None
+) -> subprocess.CompletedProcess:
     return subprocess.run(
-        [
-            _docker(), "run", "--rm", "-i",
-            "--network", "none",
+        [_docker(), "run", "--rm", "-i", "--network", "none"]
+        + (["--platform", platform] if platform else [])
+        + [
             "-v", f"{repo}:/work:ro",
             "-e", "PYTHONHASHSEED=0",
             "-e", "PYTHON_JIT=0",
             "-e", "PYTHONPATH=/work/src",
-            IMAGE_TAG, "bash", "-s",
+            image_tag(platform), "bash", "-s",
         ],
         input=script.encode(),
         capture_output=True,
@@ -179,9 +229,9 @@ def _run_in_container(repo: Path, script: str, timeout: int = 900) -> subprocess
     )
 
 
-def probe_environment(repo: Path) -> Fingerprint:
+def probe_environment(repo: Path, platform: str | None = None) -> Fingerprint:
     """Read the identity of the measurement environment from inside it."""
-    ensure_image()
+    ensure_image(platform=platform)
     script = r"""
 set -e
 python3 - <<'PY'
@@ -194,7 +244,7 @@ print(json.dumps({
 PY
 valgrind --version
 """
-    proc = _run_in_container(repo, script)
+    proc = _run_in_container(repo, script, platform=platform)
     if proc.returncode != 0:
         raise MeasurementError(proc.stderr.decode(errors="replace")[-2000:])
 
@@ -215,6 +265,7 @@ def measure(
     workload: Path,
     repetitions: int = 3,
     fingerprint: Fingerprint | None = None,
+    platform: str | None = None,
 ) -> IrMeasurement:
     """Count the instructions ``workload`` executes, net of interpreter startup.
 
@@ -222,8 +273,8 @@ def measure(
     ``run()``.  It is executed inside the container; nothing it does can reach
     the counter, which lives outside the interpreter entirely.
     """
-    ensure_image()
-    fingerprint = fingerprint or probe_environment(repo)
+    ensure_image(platform=platform)
+    fingerprint = fingerprint or probe_environment(repo, platform)
     rel = workload.relative_to(repo) if workload.is_absolute() else workload
 
     script = f"""
@@ -251,7 +302,7 @@ python3 /tmp/src/speedproof/verifyperf/inner.py measure /tmp/workload.py >/dev/n
 echo "BASELINE $(run /tmp/noop.py)"
 for _ in $(seq {repetitions}); do echo "TOTAL $(run /tmp/workload.py)"; done
 """
-    proc = _run_in_container(repo, script)
+    proc = _run_in_container(repo, script, platform=platform)
     if proc.returncode != 0:
         raise MeasurementError(
             "measurement failed inside the container:\n"

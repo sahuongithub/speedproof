@@ -18,11 +18,11 @@ from enum import Enum
 from pathlib import Path
 
 from speedproof.verifyperf.callgrind import (
-    IMAGE_TAG,
     IrMeasurement,
     MeasurementError,
     _docker,
     ensure_image,
+    image_tag,
     measure,
     probe_environment,
 )
@@ -188,9 +188,11 @@ class Comparison:
         )
 
 
-def _capture(repo: Path, workload: Path, mode: str) -> str:
+def _capture(
+    repo: Path, workload: Path, mode: str, platform: str | None = None
+) -> str:
     """Run one unmeasured mode of the inner runner and return its output."""
-    ensure_image()
+    ensure_image(platform=platform)
     rel = workload.relative_to(repo) if workload.is_absolute() else workload
     script = f"""
 set -e
@@ -201,13 +203,13 @@ export PYTHONPATH=/tmp/src
 python3 /tmp/src/speedproof/verifyperf/inner.py {mode} /tmp/workload.py
 """
     proc = subprocess.run(
-        [
-            _docker(), "run", "--rm", "-i",
-            "--network", "none",
+        [_docker(), "run", "--rm", "-i", "--network", "none"]
+        + (["--platform", platform] if platform else [])
+        + [
             "-v", f"{repo}:/work:ro",
             "-e", "PYTHONHASHSEED=0",
             "-e", "PYTHON_JIT=0",
-            IMAGE_TAG, "bash", "-s",
+            image_tag(platform), "bash", "-s",
         ],
         input=script.encode(),
         capture_output=True,
@@ -227,15 +229,18 @@ def observe(
     variant: Variant,
     repetitions: int = 5,
     fingerprint: Fingerprint | None = None,
+    platform: str | None = None,
 ) -> Observation:
     """Measure one variant on both axes and record what it computed."""
-    fingerprint = fingerprint or probe_environment(variant.repo)
+    fingerprint = fingerprint or probe_environment(variant.repo, platform)
     return Observation(
         measurement=measure(
-            variant.repo, variant.workload, repetitions, fingerprint
+            variant.repo, variant.workload, repetitions, fingerprint, platform
         ),
-        checksum=_capture(variant.repo, variant.workload, "checksum"),
-        retained_blocks=int(_capture(variant.repo, variant.workload, "alloc")),
+        checksum=_capture(variant.repo, variant.workload, "checksum", platform),
+        retained_blocks=int(
+            _capture(variant.repo, variant.workload, "alloc", platform)
+        ),
     )
 
 
@@ -245,6 +250,7 @@ def compare(
     threshold: float = 0.05,
     tolerance: float = 1e-4,
     repetitions: int = 5,
+    platform: str | None = None,
 ) -> Comparison:
     """Compare two variants and return a verdict that accounts for both axes.
 
@@ -253,10 +259,10 @@ def compare(
     as a fraction of the net count, a measurement may show and still support a
     claim.
     """
-    fingerprint = probe_environment(baseline.repo)
+    fingerprint = probe_environment(baseline.repo, platform)
     return Comparison(
-        baseline=observe(baseline, repetitions, fingerprint),
-        candidate=observe(candidate, repetitions, fingerprint),
+        baseline=observe(baseline, repetitions, fingerprint, platform),
+        candidate=observe(candidate, repetitions, fingerprint, platform),
         threshold=threshold,
         tolerance=tolerance,
     )
