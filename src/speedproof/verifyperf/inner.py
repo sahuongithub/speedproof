@@ -65,6 +65,20 @@ def _force(value):
     return 1
 
 
+def _materialise(value):
+    """Turn a lazily-produced result into the values it stands for.
+
+    A workload that returns a generator has not yet done its work. Comparing
+    the generator object itself would let a patch pass a correctness check it
+    never actually satisfied, so the values are drawn out before hashing.
+    """
+    if hasattr(value, "__iter__") and not isinstance(
+        value, (str, bytes, bytearray, list, tuple, set, frozenset, dict)
+    ):
+        return list(value)
+    return value
+
+
 def main():
     if len(sys.argv) != 3 or sys.argv[1] not in ("measure", "checksum", "alloc"):
         raise SystemExit("usage: inner.py {measure|checksum|alloc} <workload.py>")
@@ -95,7 +109,7 @@ def main():
     # Only the unmeasured path pays for hashlib and the canonical encoder.
     from speedproof.verifyperf.canon import checksum
 
-    sys.stdout.write(checksum(result) + "\n")
+    sys.stdout.write(checksum(_materialise(result)) + "\n")
     return 0
 
 
