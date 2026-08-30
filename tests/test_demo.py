@@ -48,3 +48,21 @@ def test_each_case_has_its_own_paired_baseline():
     module's, which is how a real optimisation was first mistaken for a cheat."""
     for case in CASES:
         assert case.baseline.strip()
+
+
+def test_the_readme_command_exists():
+    """The README tells a reader to run this; it should exist."""
+    import importlib.util
+
+    assert importlib.util.find_spec("speedproof.hackguard.__main__")
+
+
+def test_the_demonstration_fails_loudly_if_a_gate_stops_working():
+    """It exits non-zero when any case is judged wrongly, so a regression in
+    the gates cannot pass unnoticed."""
+    import inspect
+
+    from speedproof.hackguard import __main__
+
+    source = inspect.getsource(__main__.main)
+    assert "return 0 if all(o.correct for o in outcomes) else 1" in source

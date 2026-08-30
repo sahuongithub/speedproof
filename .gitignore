@@ -9,3 +9,4 @@ __pycache__/
 /eval/runs/
 callgrind.out.*
 /corpus/work/
+/corpus/demo/
