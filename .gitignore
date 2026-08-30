@@ -8,3 +8,4 @@ __pycache__/
 /eval/cache/
 /eval/runs/
 callgrind.out.*
+/corpus/work/
