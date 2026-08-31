@@ -6,7 +6,6 @@ __pycache__/
 .DS_Store
 /corpus/repos/
 /eval/cache/
-/eval/runs/
 callgrind.out.*
 /corpus/work/
 /corpus/demo/

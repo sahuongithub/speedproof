@@ -1,0 +1,163 @@
+{
+  "gate": {
+    "soundness": 1.0,
+    "completeness": 1.0,
+    "passed": true,
+    "controls": [
+      {
+        "name": "precision_weakened",
+        "truth": "broken",
+        "fault": "precision_weakened",
+        "rejected": true,
+        "correct": true,
+        "failure_kind": null
+      },
+      {
+        "name": "order_unstable",
+        "truth": "broken",
+        "fault": "order_unstable",
+        "rejected": true,
+        "correct": true,
+        "failure_kind": null
+      },
+      {
+        "name": "comparison_flip",
+        "truth": "broken",
+        "fault": "comparison_flip",
+        "rejected": true,
+        "correct": true,
+        "failure_kind": null
+      },
+      {
+        "name": "cache_key_incomplete",
+        "truth": "broken",
+        "fault": "cache_key_incomplete",
+        "rejected": true,
+        "correct": true,
+        "failure_kind": null
+      },
+      {
+        "name": "copy_became_alias",
+        "truth": "broken",
+        "fault": "copy_became_alias",
+        "rejected": true,
+        "correct": true,
+        "failure_kind": null
+      },
+      {
+        "name": "edge_case_skipped",
+        "truth": "broken",
+        "fault": "edge_case_skipped",
+        "rejected": true,
+        "correct": true,
+        "failure_kind": null
+      },
+      {
+        "name": "genuinely_faster",
+        "truth": "equivalent",
+        "fault": null,
+        "rejected": false,
+        "correct": true,
+        "failure_kind": null
+      },
+      {
+        "name": "rewritten_identically",
+        "truth": "equivalent",
+        "fault": null,
+        "rejected": false,
+        "correct": true,
+        "failure_kind": null
+      }
+    ]
+  },
+  "cases": [
+    {
+      "case": "honest algorithmic win",
+      "baseline_workload": "corpus/examples/quadratic_concat.py",
+      "candidate_workload": "corpus/examples/linear_sum.py",
+      "expected": "improved",
+      "verdict": "improved",
+      "agrees": true,
+      "work_reduction": 0.973744,
+      "baseline_net_ir": 104847849,
+      "candidate_net_ir": 2752846,
+      "baseline_checksum": "68b19478554d824c97e5dfa6a4b823063e5c25d314eca7b1be378d8872f94dfd",
+      "candidate_checksum": "68b19478554d824c97e5dfa6a4b823063e5c25d314eca7b1be378d8872f94dfd",
+      "baseline_deterministic": true,
+      "candidate_deterministic": true,
+      "fingerprint": {
+        "arch": "x86_64",
+        "image_digest": "09f7da3bc104798d",
+        "python_version": "3.12.14",
+        "valgrind_version": "3.24.0",
+        "libc": "glibc-2.41"
+      }
+    },
+    {
+      "case": "cheat: fast but wrong answer",
+      "baseline_workload": "corpus/examples/linear_sum.py",
+      "candidate_workload": "corpus/cheats/wrong_answer.py",
+      "expected": "not_equivalent",
+      "verdict": "not_equivalent",
+      "agrees": true,
+      "work_reduction": 0.960726,
+      "baseline_net_ir": 2752846,
+      "candidate_net_ir": 108114,
+      "baseline_checksum": "68b19478554d824c97e5dfa6a4b823063e5c25d314eca7b1be378d8872f94dfd",
+      "candidate_checksum": "7307e1370e0959b0d56f2c51355fb82e8018f62c3d65f559c2ea5dfaf052f2ae",
+      "baseline_deterministic": true,
+      "candidate_deterministic": true,
+      "fingerprint": {
+        "arch": "x86_64",
+        "image_digest": "09f7da3bc104798d",
+        "python_version": "3.12.14",
+        "valgrind_version": "3.24.0",
+        "libc": "glibc-2.41"
+      }
+    },
+    {
+      "case": "cheat: cached across runs",
+      "baseline_workload": "corpus/examples/linear_sum.py",
+      "candidate_workload": "corpus/cheats/memoised_across_runs.py",
+      "expected": "regressed",
+      "verdict": "regressed",
+      "agrees": true,
+      "work_reduction": -0.053984,
+      "baseline_net_ir": 2752846,
+      "candidate_net_ir": 2901455,
+      "baseline_checksum": "68b19478554d824c97e5dfa6a4b823063e5c25d314eca7b1be378d8872f94dfd",
+      "candidate_checksum": "68b19478554d824c97e5dfa6a4b823063e5c25d314eca7b1be378d8872f94dfd",
+      "baseline_deterministic": true,
+      "candidate_deterministic": true,
+      "fingerprint": {
+        "arch": "x86_64",
+        "image_digest": "09f7da3bc104798d",
+        "python_version": "3.12.14",
+        "valgrind_version": "3.24.0",
+        "libc": "glibc-2.41"
+      }
+    },
+    {
+      "case": "cheat: work deferred to a generator",
+      "baseline_workload": "corpus/examples/list_squares.py",
+      "candidate_workload": "corpus/cheats/deferred_work.py",
+      "expected": "regressed",
+      "verdict": "regressed",
+      "agrees": true,
+      "work_reduction": -0.669321,
+      "baseline_net_ir": 1968619,
+      "candidate_net_ir": 3286257,
+      "baseline_checksum": "a9838e2037c50411ebd39e5644852738a647e4aed6f53c65ae16e67947e267d8",
+      "candidate_checksum": "a9838e2037c50411ebd39e5644852738a647e4aed6f53c65ae16e67947e267d8",
+      "baseline_deterministic": true,
+      "candidate_deterministic": true,
+      "fingerprint": {
+        "arch": "x86_64",
+        "image_digest": "09f7da3bc104798d",
+        "python_version": "3.12.14",
+        "valgrind_version": "3.24.0",
+        "libc": "glibc-2.41"
+      }
+    }
+  ]
+}

@@ -102,9 +102,9 @@ and on a shared GitHub runner:
 
 | | arm64 | x86_64 | difference |
 | --- | ---: | ---: | ---: |
-| baseline, net instructions | 95,363,971 | 104,849,717 | +9.9% |
-| candidate, net instructions | 2,511,929 | 2,754,627 | +9.7% |
-| **work removed** | **97.37%** | **97.37%** | **+0.01 pp** |
+| baseline, net instructions | 95,360,370 | 104,847,849 | +9.9% |
+| candidate, net instructions | 2,508,272 | 2,752,846 | +9.8% |
+| **work removed** | **97.37%** | **97.37%** | **+0.00 pp** |
 
 Counts are not portable across architectures; ratios and verdicts are. Running
 the whole suite twice on the same noisy shared runner returned identical counts
