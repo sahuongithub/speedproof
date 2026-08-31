@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>speedproof — Whether to believe it</title>
+<style>
+:root {
+  --ink: #16181d; --dim: #6b7280; --line: #e5e7eb; --paper: #ffffff;
+  --good: #15803d; --good-bg: #f0fdf4; --bad: #b91c1c; --bad-bg: #fef2f2;
+  --accent: #1d4ed8; --rule: #f3f4f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #e5e7eb; --dim: #9ca3af; --line: #374151; --paper: #111318;
+    --good: #4ade80; --good-bg: #0d2818; --bad: #f87171; --bad-bg: #2a1315;
+    --accent: #93c5fd; --rule: #1f2430;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 3rem 1.5rem 6rem; background: var(--paper); color: var(--ink);
+  font: 16px/1.65 ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif;
+}
+main { max-width: 46rem; margin: 0 auto; }
+h1 { font-size: 1.9rem; margin: 0 0 .3rem; letter-spacing: -.02em; }
+h2 { font-size: 1.15rem; margin: 3rem 0 1rem; letter-spacing: -.01em; }
+.lede { color: var(--dim); margin: 0 0 2.5rem; font-size: 1.05rem; }
+.headline {
+  display: flex; gap: 2.5rem; flex-wrap: wrap; padding: 1.5rem 0;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.figure .value { font-size: 2rem; font-weight: 600; letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums; }
+.figure .label { color: var(--dim); font-size: .85rem; }
+.figure.win .value { color: var(--good); }
+.bar { display: flex; align-items: center; gap: .75rem; margin: .4rem 0; }
+.bar .name { width: 9rem; font-size: .9rem; color: var(--dim); flex: none; }
+.bar .track { flex: 1; height: 1.6rem; background: var(--rule); border-radius: 3px;
+  overflow: hidden; }
+.bar .fill { height: 100%; background: var(--accent); opacity: .85; }
+.bar .fill.after { background: var(--good); }
+.bar .n { width: 8rem; text-align: right; font-variant-numeric: tabular-nums;
+  font-size: .9rem; flex: none; }
+.round { border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.25rem;
+  margin: .85rem 0; }
+.round.kept { border-color: var(--good); background: var(--good-bg); }
+.round.rejected { border-color: var(--bad); background: var(--bad-bg); }
+.round .top { display: flex; justify-content: space-between; align-items: baseline;
+  gap: 1rem; margin-bottom: .6rem; }
+.round .who { font-weight: 600; }
+.round .verdict { font-size: .85rem; font-weight: 600; }
+.round.kept .verdict { color: var(--good); }
+.round.rejected .verdict { color: var(--bad); }
+pre { margin: .5rem 0 0; padding: .75rem .9rem; background: var(--rule);
+  border-radius: 6px; overflow-x: auto; font-size: .82rem; line-height: 1.5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+pre .add { color: var(--good); } pre .del { color: var(--bad); }
+table { width: 100%; border-collapse: collapse; font-size: .92rem; margin: .5rem 0; }
+th { text-align: left; font-weight: 600; font-size: .78rem; color: var(--dim);
+  text-transform: uppercase; letter-spacing: .06em; padding: .5rem .6rem;
+  border-bottom: 1px solid var(--line); }
+td { padding: .6rem; border-bottom: 1px solid var(--rule);
+  font-variant-numeric: tabular-nums; }
+td.good { color: var(--good); font-weight: 600; }
+td.bad { color: var(--bad); font-weight: 600; }
+.note { color: var(--dim); font-size: .9rem; }
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+  color: var(--dim); font-size: .85rem; }
+
+nav { display: flex; gap: 1.25rem; flex-wrap: wrap; margin: 0 0 2.5rem;
+  padding-bottom: 1rem; border-bottom: 1px solid var(--line); font-size: .92rem; }
+nav a { color: var(--dim); text-decoration: none; }
+nav a:hover { color: var(--ink); }
+nav a.here { color: var(--ink); font-weight: 600; }
+.banner { background: var(--rule); border-radius: 8px; padding: .9rem 1.1rem;
+  font-size: .88rem; color: var(--dim); margin: 0 0 2rem; }
+.banner strong { color: var(--ink); }
+.funnel .bar .name { width: 12rem; }
+.funnel .fill { background: var(--dim); opacity: .5; }
+.funnel .fill.kept { background: var(--good); opacity: .9; }
+</style></head><body><main>
+<nav><a href="index.html">The result</a> <a href="cheats.html">What it refuses</a> <a href="measurement.html" class='here'>Whether to believe it</a> <a href="corpus.html">What did not work</a></nav>
+<h1>Whether to believe it</h1>
+<p class="lede">The measurement counts instructions a program retires, in a container the code under test cannot configure, with the counter outside the interpreter entirely. The result is an integer rather than an interval.</p>
+<h2>Why not just time it</h2>
+<p>Changing only the size of an unused environment variable has been shown to swing a measured speedup between 0.91× and 1.10×. A survey of 133 papers found a median claimed speedup of 10% — smaller than that bias.</p>
+<h2>The same suite on two architectures</h2>
+<table><tr><th></th><th>arm64</th><th>x86_64</th><th>difference</th></tr>
+<tr><td>baseline, instructions</td><td>95,360,370</td><td>104,847,849</td><td>+9.9%</td></tr>
+<tr><td>candidate, instructions</td><td>2,508,272</td><td>2,752,846</td><td>+9.8%</td></tr>
+<tr><td><strong>work removed</strong></td><td>97.37%</td><td>97.37%</td><td class="good">+0.00 pp</td></tr></table>
+<div class="banner">Counts are not portable across architectures. <strong>Ratios and verdicts are.</strong> Running the whole suite twice on the same shared, busy machine returns identical numbers — a busy machine changes how long a measurement takes, not what it reports.</div>
+<h2>The gate is shown rejecting things</h2><p>A correctness check that has never rejected anything is indistinguishable from no check. Eight deliberately broken and deliberately equivalent variants are kept as permanent controls and re-run on every change: <strong>6 of 6</strong> broken variants rejected, <strong>2 of 2</strong> real optimisations accepted. Both numbers are needed — a gate that rejects everything scores perfectly on the first.</p>
+<footer>
+<strong>speedproof</strong> — an agent that makes code faster, and a harness
+that can prove it did.<br>
+Nothing on this site runs. Every number here came from a measurement recorded
+in the repository, and you can repeat any of it with
+<code>uv run speedproof optimise yourfile.py</code>.
+</footer>
+</main></body></html>

@@ -9,6 +9,7 @@ COMMANDS = {
     "optimize": "speedproof.optimise",
     "demo": "speedproof.hackguard.__main__",
     "verify": "speedproof.verifyperf.cli",
+    "site": "speedproof.site",
 }
 
 USAGE = """\
@@ -19,6 +20,7 @@ speedproof — make code faster, and prove it got faster
                                write an example file to try it on
   speedproof demo              five attempted optimisations, three of them cheats
   speedproof verify            check the correctness gate, then measure
+  speedproof site              rebuild the recorded-results pages in docs/site
 
 A file to optimise needs one function, run(), which does the work and returns
 its result. The result is what correctness is judged on.

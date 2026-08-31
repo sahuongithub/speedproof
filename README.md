@@ -25,6 +25,7 @@ Needs Docker. Needs no API key for anything except the agent itself.
 | **Is the gate real?** | `uv run speedproof verify` — it is shown rejecting things |
 | **How is it built?** | [docs/measurement.md](docs/measurement.md), [docs/correctness.md](docs/correctness.md) |
 | **What failed on the way?** | [docs/CHANGELOG.md](docs/CHANGELOG.md) — including four of my own optimisations that were slower than the code they replaced |
+| **Would rather just read?** | [the recorded results](docs/site/index.html) — four pages, nothing to install |
 
 ---
 
