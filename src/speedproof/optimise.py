@@ -136,6 +136,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-colour", action="store_true")
     parser.add_argument("--output", type=Path,
                         help="where to write the improved file")
+    parser.add_argument("--report", type=Path,
+                        help="write an HTML report (default: alongside the file)")
+    parser.add_argument("--no-report", action="store_true")
+    parser.add_argument("--open", action="store_true",
+                        help="open the report when it is finished")
     args = parser.parse_args(argv)
 
     console = Console(colour=sys.stdout.isatty() and not args.no_colour)
@@ -329,6 +334,28 @@ def _optimise(args, console: Console) -> int:
         console.say()
         console.good(f"wrote {destination}")
         console.note(f"diff it against the original: diff {args.file} {destination}")
+
+        if not args.no_report:
+            from speedproof.report import Report
+
+            page = Report(
+                subject=args.file.name,
+                before=start.net,
+                after=best.net_ir,
+                rounds=[
+                    {"round": r.number, "net_ir": r.net_ir,
+                     "rejected": r.rejected, "patch": r.patch}
+                    for r in trajectory.rounds
+                ],
+                kept_round=best.number,
+                deterministic=start.deterministic,
+                environment=str(fingerprint),
+            ).write(args.report or args.file.with_suffix(".report.html"))
+            console.good(f"wrote {page}")
+            if args.open:
+                import subprocess
+
+                subprocess.run(["open", str(page)], check=False)
     return 0
 
 

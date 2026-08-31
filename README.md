@@ -2,6 +2,30 @@
 
 An agent that makes code faster, and a harness that can prove it did.
 
+## Try it
+
+```bash
+uv sync --extra dev
+uv run speedproof optimise --example slow.py    # a deliberately slow file
+uv run speedproof optimise slow.py              # watch an agent improve it
+```
+
+Four minutes, and you will see an agent propose a change, the harness measure
+it, and a result: on the bundled example it removes **32% of the work** and the
+answers are proved unchanged.
+
+Needs Docker. Needs no API key for anything except the agent itself.
+
+### Then, depending on what you want
+
+| | |
+| --- | --- |
+| **Does it work?** | the two commands above |
+| **Can I trust it?** | `uv run speedproof demo` — five attempts, three of them cheats |
+| **Is the gate real?** | `uv run speedproof verify` — it is shown rejecting things |
+| **How is it built?** | [docs/measurement.md](docs/measurement.md), [docs/correctness.md](docs/correctness.md) |
+| **What failed on the way?** | [docs/CHANGELOG.md](docs/CHANGELOG.md) — including four of my own optimisations that were slower than the code they replaced |
+
 ---
 
 ## The problem
