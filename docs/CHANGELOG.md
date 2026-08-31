@@ -2,7 +2,62 @@
 
 Every entry records what was tried, what it measured, and what was decided.
 Experiments that were removed stay in the record, because what they ruled out
-is part of the result.
+is part of the result — and because several of them were plausible enough that
+a reader might otherwise try them.
+
+## The arc, in one page
+
+The project began as an agent that optimises code and became, mostly, the
+instrument that judges one. That was not the plan; it is where the measurements
+led.
+
+**It started with a baseline that could not see the thing it was measuring.**
+Counting instructions for a whole process is the obvious first move, and Python
+spends 36.4 million of them starting up. Two workloads differing thirty-fold in
+work differed by five per cent in total. Subtracting an empty run through the
+identical wrapper recovered the real ratio, and that subtraction is the
+foundation everything else rests on.
+
+**Then the wrapper doing the subtracting turned out to matter.** A convenient
+runner using `argparse` and `importlib` cost 191 million instructions and varied
+by about 550 between repetitions. Constant overhead cancels in a subtraction;
+its variance does not, and lands whole on the answer. Stripping the runner to
+`sys.argv`, `compile` and `exec` dropped the baseline to 49 million and made
+repeated measurements bit-identical.
+
+**The same lesson then arrived twice more, in different clothes.** Measuring a
+project's own benchmark against an empty baseline left the operation under study
+at **0.086%** of what was measured, because the benchmark's class body builds a
+500×500 tensor before the benchmark is called; pairing the baseline with the
+workload fixed it. And collecting coverage before the import rather than after
+attributed **6,652 of 6,700 lines** to every workload alike; starting after the
+import left them sharing none. Three times, the fix was the same: exclude what
+is common to everything, or the signal drowns in it.
+
+**Then the paired baseline turned out to be somewhere to hide.** Work moved into
+module import is carried by both sides and cancels exactly. A module
+precomputing its answer read as a **200× improvement** while doing more work in
+total. Measuring the import cost separately closed it.
+
+**Meanwhile the correctness gate had never rejected anything, which is
+indistinguishable from not having one.** Eight deliberately broken and
+deliberately equivalent variants became permanent controls. The first run
+accepted two of the six broken ones — and both failures were mine: one fault was
+never reached, and the other infected state that never reached an output. The
+gate was right all along and the evidence for it was wrong, which nothing but
+running it would have shown.
+
+**The agent was then built to published ablations rather than to intuition**,
+and two of them reversed what had been planned. Iterating with measured feedback
+is the effect, not the profiler. Correctness feedback alone makes results worse.
+
+**And the instrument kept catching its author.** Of seven optimisations written
+by hand for the demonstration, four were slower than the code they replaced, and
+a fifth needed an import costing 7.6 million instructions against the 2.4
+million it saved.
+
+The tables below are the full record.
+
 
 | Stage | What was tried, and why | Evidence | Decision |
 | --- | --- | --- | --- |
@@ -53,3 +108,35 @@ Each cheat is a patch that a harness measuring only elapsed time would accept.
 | Coverage started before the import | Start coverage, import the benchmark module, construct, call. The obvious order. | Four xdsl workloads shared **6,652 of ~6,700** covered lines and differed by as few as four, because every module's import-time execution was attributed to whichever workload triggered it. | Rejected. Coverage now starts after the import and construction, so it records the call and nothing else: the same four workloads then share **zero** lines. Patches to import-time code are handled by a separate escalation rule rather than by coverage that cannot attribute them. |
 | First corpus run | Run the pipeline end to end across two repositories. | xdsl: 0 of 25 validated, and only 1 of 25 measurable at all — nineteen tasks predate any callable benchmark. packaging: 1 of 6 validated, 3 of 6 measurable. The validated task reproduces `perf: add __slots__ to token classes` at **+3.01%**, deterministic, outputs unchanged. | Pipeline kept; xdsl retired as a source. The difference is not the pipeline but the repositories: a project can have benchmarks and have optimisation commits without the two ever meeting, which is what the earlier survey could not detect. |
 | Paired baseline alone | Subtract a baseline carrying the same imports, so the measurement is of the benchmarked call. | Correct, and a hiding place: a module precomputing its answer at import had both sides carry the cost, cancelling exactly. Measured, that reads as a **200x improvement** — net Ir 1,334,809 to 6,585 — while the program does *more* total work, 1,827,626 to 1,885,271. | Kept, with the hole closed. Every measurement now records the module's import cost, and a saving is credited only when the whole program does less work. A cheaper import still counts; an unknown import cost returns unknown rather than assuming the work stayed put. |
+
+## The main failure mode
+
+Not the agent's — the instrument's.
+
+A measurement can be perfectly reproducible and measure the wrong thing, and
+nothing about the reproducibility warns you. Every serious error in this project
+had that shape. The empty baseline gave bit-identical numbers across every
+repetition while the operation under study was 0.086% of them. The coverage map
+was exact and attributed almost every line to every workload. The paired
+baseline cancelled the import so precisely that moving work into it registered
+as a two-hundredfold win.
+
+In each case the number was stable, the code was correct, and the conclusion was
+false. That combination is why the field's published results are worth
+doubting: a wall-clock harness is *less* precise than any of these and is
+trusted more, because precision is the property people check for and relevance
+is not.
+
+The practical consequence is that every gate in this project has to be shown
+firing. A check that has never rejected anything and a check that cannot reject
+anything look identical from the outside, which is why the controls are
+permanent, re-run on every change, and reported in both directions.
+
+## The hot take
+
+Wall-clock benchmarking made this field's results unfalsifiable, and the
+response has been to build better agents rather than better instruments.
+
+Counting instructions costs nothing and settles it. The reason nobody does it is
+not that it is hard — it is that determinism removes the wiggle room, and a
+number that cannot move in your favour is a number you have to live with.
