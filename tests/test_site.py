@@ -40,11 +40,18 @@ def test_the_result_page_shows_the_maintainer_as_the_target(built):
     assert "maintainer" in built["index.html"]
 
 
-def test_the_failure_page_leads_with_what_did_not_work(built):
-    """Most candidates do not survive, and the reasons are the finding."""
+def test_the_corpus_page_keeps_every_reason_a_candidate_failed(built):
+    """Most candidates do not survive, and the reasons are the finding.
+
+    The page is titled for the finding rather than for the shortfall, but the
+    breakdown behind it stays whole: a page that reported only the successes
+    would be a selection, which is the thing this project exists to refuse.
+    """
     corpus = built["corpus.html"]
-    assert "What did not work" in corpus
+    assert "What can be measured" in corpus
     assert "no benchmark reaches the changed lines" in corpus
+    assert "no runnable benchmark at that commit" in corpus
+    assert "the project would not build" in corpus
 
 
 def test_the_cheats_page_names_its_sources(built):

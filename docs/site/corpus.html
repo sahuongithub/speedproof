@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>speedproof — What did not work</title>
+<title>speedproof — What can be measured</title>
 <style>
 :root {
   --ink: #16181d; --dim: #6b7280; --line: #e5e7eb; --paper: #ffffff;
@@ -78,9 +78,9 @@ nav a.here { color: var(--ink); font-weight: 600; }
 .funnel .fill { background: var(--dim); opacity: .5; }
 .funnel .fill.kept { background: var(--good); opacity: .9; }
 </style></head><body><main>
-<nav><a href="index.html">The result</a> <a href="cheats.html">What it refuses</a> <a href="measurement.html">Whether to believe it</a> <a href="corpus.html" class='here'>What did not work</a></nav>
-<h1>What did not work</h1>
-<p class="lede">Most real optimisations turn out not to be measurable, and the reasons are more interesting than the successes. Nobody appears to have published what fraction of real optimisation work can be measured at all, so here it is.</p>
+<nav><a href="index.html">The result</a> <a href="cheats.html">What it refuses</a> <a href="measurement.html">Whether to believe it</a> <a href="corpus.html" class='here'>What can be measured</a></nav>
+<h1>What can be measured</h1>
+<p class="lede">Nobody appears to have published what fraction of real optimisation work a project's own benchmarks can actually reach. This is that measurement, taken over four projects' histories. It says something worth knowing about how software gets benchmarked, and it sets the honest ceiling on what any tool in this area can claim.</p>
 <div class="funnel"><div class="bar"><div class="name">no runnable benchmark at that commit</div><div class="track"><div class="fill" style="width:100.0%"></div></div><div class="n">19</div></div><div class="bar"><div class="name">no benchmark reaches the changed lines</div><div class="track"><div class="fill" style="width:89.5%"></div></div><div class="n">17</div></div><div class="bar"><div class="name">measured, but below the threshold</div><div class="track"><div class="fill" style="width:15.8%"></div></div><div class="n">3</div></div><div class="bar"><div class="name">the project would not build</div><div class="track"><div class="fill" style="width:15.8%"></div></div><div class="n">3</div></div><div class="bar"><div class="name">measured, and the improvement is visible</div><div class="track"><div class="fill kept" style="width:5.3%"></div></div><div class="n">1</div></div><div class="bar"><div class="name">the recorded patch no longer applies</div><div class="track"><div class="fill" style="width:5.3%"></div></div><div class="n">1</div></div></div>
 <p>Of <strong>44</strong> candidate optimisations mined from four projects' histories, <strong>1</strong> could be measured cleanly and showed the improvement its author intended.</p>
 <div class="banner"><strong>The dominant reason is not the pipeline.</strong> It is that a project's benchmark suite is written to track overall health, not to cover the specific places where optimisation work happens. A project can have benchmarks, and have optimisation commits, and have the two never meet.</div>

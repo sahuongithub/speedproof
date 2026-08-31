@@ -27,7 +27,7 @@ NAV = (
     ("index.html", "The result"),
     ("cheats.html", "What it refuses"),
     ("measurement.html", "Whether to believe it"),
-    ("corpus.html", "What did not work"),
+    ("corpus.html", "What can be measured"),
 )
 
 EXTRA = """
@@ -274,11 +274,13 @@ class Site:
                 totals[reason] = totals.get(reason, 0) + count
 
         body = [
-            "<h1>What did not work</h1>",
-            '<p class="lede">Most real optimisations turn out not to be '
-            "measurable, and the reasons are more interesting than the successes. "
-            "Nobody appears to have published what fraction of real optimisation "
-            "work can be measured at all, so here it is.</p>",
+            "<h1>What can be measured</h1>",
+            '<p class="lede">Nobody appears to have published what fraction of '
+            "real optimisation work a project's own benchmarks can actually "
+            "reach. This is that measurement, taken over four projects' "
+            "histories. It says something worth knowing about how software gets "
+            "benchmarked, and it sets the honest ceiling on what any tool in "
+            "this area can claim.</p>",
         ]
         readable = {
             "validated": "measured, and the improvement is visible",
@@ -315,7 +317,7 @@ class Site:
                 f"<td>{measurable}</td></tr>"
             )
         body.append("</table>")
-        return _shell("What did not work", "corpus.html", "\n".join(body))
+        return _shell("What can be measured", "corpus.html", "\n".join(body))
 
     # ----------------------------------------------------------------- writing
 

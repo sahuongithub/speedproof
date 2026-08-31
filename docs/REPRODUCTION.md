@@ -141,6 +141,43 @@ removed. Most candidates do not survive, and the distribution of reasons is in
 Cloning is on first use and cached under `corpus/repos/`. pypa/packaging is
 small; the pandas manifest needs a build of about four minutes per task.
 
+## Versions, runtime and cost
+
+**Cost: nothing, except the agent.** The measurement, the cheat suite, the
+correctness gate, the corpus mining and the cross-architecture check use no paid
+service of any kind. They run on a laptop and on a free CI runner. The only part
+that costs money is the model call inside the agent, and it is not needed to
+check any measurement in this repository.
+
+| | |
+| --- | --- |
+| measurement image base | `python@sha256:09f7da3b…f5d85217`, pinned by digest |
+| Python, host | 3.12 or later |
+| Docker | 29.7.1 (any recent version; colima works) |
+| `uv` | 0.12.1 (optional — see below) |
+| architectures verified | arm64 (Apple M1) and x86_64 (GitHub runner) |
+
+Counts are not portable across architectures; ratios and verdicts are, which is
+why the environment fingerprint is recorded with every measurement and a
+cross-fingerprint comparison is refused rather than reported.
+
+| Step | Command | Runtime |
+| --- | --- | --- |
+| test suite | `uv run pytest -q` | ~4 min, first run longer while the image builds |
+| the demonstration | `uv run speedproof demo` | ~40 s |
+| gate validation | `uv run python -m speedproof.verifyperf.cli` | ~3 min |
+| one file, end to end | `uv run speedproof optimise slow.py` | ~4 min (needs a model) |
+| baseline vs solution | the `--arm one_shot --arm agent` command above | 15-30 min (needs a model) |
+| corpus, 3 candidates | `uv run python -m speedproof.corpus.cli … --limit 3` | ~6 min |
+
+The measurement dominates every figure above. Valgrind costs twenty to a hundred
+times native speed, and that is the price of the count being exact.
+
+**Data.** None needs downloading. The corpus manifests are checked in, and the
+repositories they name are cloned on first use into `corpus/repos/`.
+pypa/packaging is small; the pandas manifest needs a build of about four minutes
+per task.
+
 ## Without uv
 
 ```bash

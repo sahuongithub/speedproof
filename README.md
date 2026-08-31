@@ -11,8 +11,9 @@ uv run speedproof optimise slow.py              # watch an agent improve it
 ```
 
 Four minutes, and you will see an agent propose a change, the harness measure
-it, and a result: on the bundled example it removes **32% of the work** and the
-answers are proved unchanged.
+it, and a result: on the bundled example it removes **25-35% of the work** and
+the answers are proved unchanged. The agent is a language model, so the exact
+figure moves between runs; the measurement of it does not.
 
 Needs Docker. Needs no API key for anything except the agent itself.
 
@@ -24,7 +25,8 @@ Needs Docker. Needs no API key for anything except the agent itself.
 | **Can I trust it?** | `uv run speedproof demo` — five attempts, three of them cheats |
 | **Is the gate real?** | `uv run speedproof verify` — it is shown rejecting things |
 | **How is it built?** | [docs/measurement.md](docs/measurement.md), [docs/correctness.md](docs/correctness.md) |
-| **What failed on the way?** | [docs/CHANGELOG.md](docs/CHANGELOG.md) — including four of my own optimisations that were slower than the code they replaced |
+| **How does the agent work, exactly?** | [docs/TRAJECTORIES.md](docs/TRAJECTORIES.md) — the full brief, the feedback it gets, and a recorded trajectory for each agent |
+| **What did measurement refute?** | [docs/CHANGELOG.md](docs/CHANGELOG.md) — 35 experiments with their numbers, including four of my own optimisations the harness proved were slower |
 | **Would rather just read?** | [the recorded results](docs/site/index.html) — four pages, nothing to install |
 
 ---
@@ -101,6 +103,29 @@ None of the cheats was invented for this. Each cites the published benchmark
 that documented it.
 
 ## Who this is for
+
+**The intended user is a team that has decided to point an AI agent at their own
+codebase and ask it to make something faster.**
+
+Their bottleneck is not finding an agent. Agents that propose plausible
+optimisations are widely available and cheap. The bottleneck is that **nothing
+they can buy will tell them whether the patch that came back is actually an
+improvement.** Their CI times a benchmark, the number moves, and the number
+moving is not evidence: the timing noise on a shared runner is larger than the
+median speedup in the published literature, and an agent scored on that number
+has an easier path to moving it than to doing the work.
+
+So the change lands, or it does not land, on someone's judgement. Both are
+expensive. Merging a regression that looks like a win costs the six months until
+someone profiles it again. Refusing a real improvement because it cannot be
+verified costs the improvement.
+
+**Why solving it is valuable:** it converts a judgement call into a check. The
+output stops being a patch and a claim, and becomes a patch and a certificate —
+how much work went away, that the answers are unchanged, and that the saving is
+not an artefact of where the measurement was taken. That is the difference
+between an agent you supervise and an agent you can let run.
+
 
 A team that wants an agent to speed up their code, and cannot afford to find out
 six months later that it did not. The output is a patch with a certificate: how
@@ -233,11 +258,11 @@ way, [docs/correctness.md](docs/correctness.md) for how a patch is judged
 correct, and [docs/CHANGELOG.md](docs/CHANGELOG.md) for what was tried, what it
 measured, and what was thrown away.
 
-## What went wrong while building it
+## What measurement refuted
 
-The changelog records every experiment, including the ones that failed. Four are
-worth knowing about because each was a plausible design that measurement
-refuted:
+The changelog records every experiment with its numbers. Four are worth knowing
+about, because each was a plausible design that sounded right and that
+measurement refuted — which is the case for the instrument in miniature:
 
 **An empty baseline made a real signal 0.086% of the measurement.** Subtracting
 interpreter startup is right for a purpose-built workload and wrong for a
