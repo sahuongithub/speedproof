@@ -146,6 +146,11 @@ class Round:
         """One line, for the history the next round is shown."""
         if self.rejected:
             return f"round {self.number}: rejected, {self.rejected}"
+        if self.net_ir is None:
+            # Neither measured nor refused. Reported as unknown rather than
+            # raising, since this text goes into the next round's prompt and a
+            # bookkeeping gap should not end a run.
+            return f"round {self.number}: no measurement was returned"
         change = (baseline_ir - self.net_ir) / baseline_ir if baseline_ir else 0
         return (
             f"round {self.number}: {self.net_ir:,} instructions "
@@ -228,12 +233,23 @@ class Trajectory:
 
 
 def patch_fingerprint(patch: str) -> str:
-    """Identify a patch, so the same one is not measured twice.
+    """Identify a patch by what it changes, so the same one is not measured twice.
 
-    An agent that repeats an attempt has stalled, and measuring it again costs
-    a Valgrind run to learn what is already known.
+    An agent that repeats an attempt has stalled, and measuring it again costs a
+    Valgrind run to learn what is already known.
+
+    The header lines are excluded, and that is the whole difficulty. A unified
+    diff names each file with a path and a modification time, so two byte-identical
+    changes written a moment apart hash differently. The failure is invisible on a
+    fast machine, where both writes land inside the same timestamp granularity, and
+    appears on a slower one -- which is how this survived locally and was caught by
+    continuous integration.
     """
-    return hashlib.sha256(patch.encode()).hexdigest()[:16]
+    content = "\n".join(
+        line for line in patch.splitlines()
+        if not line.startswith(("--- ", "+++ ", "diff ", "index "))
+    )
+    return hashlib.sha256(content.encode()).hexdigest()[:16]
 
 
 #: The task, stated once. Both the baseline and the agent see this same text on

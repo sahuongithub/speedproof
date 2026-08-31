@@ -154,3 +154,31 @@ def test_all_edits_apply_or_none_do(tmp_path):
         with pytest.raises(EditError):
             apply_edits(ws, "m.py", [good, bad])
         assert ws.read("m.py") == "a = 1\nb = 2\n"
+
+
+def test_the_same_change_hashes_the_same_when_written_twice():
+    """A unified diff names each file with a path and a modification time, so
+    two byte-identical changes written a moment apart hash differently. The
+    failure is invisible on a fast machine and appears on a slower one."""
+    first = (
+        "diff -u -r --new-file /tmp/a/m.py\t2026-08-31 01:32:11.551084892 +0000\n"
+        "--- /tmp/a/m.py\t2026-08-31 01:32:11.551084892 +0000\n"
+        "+++ /tmp/b/m.py\t2026-08-31 01:32:11.559112004 +0000\n"
+        "@@ -1 +1 @@\n-value = 1\n+value = 2\n"
+    )
+    second = first.replace("01:32:11.551084892", "01:33:47.220118773").replace(
+        "01:32:11.559112004", "01:33:47.881204551"
+    )
+    assert patch_fingerprint(first) == patch_fingerprint(second)
+
+
+def test_different_changes_still_differ():
+    a = "--- x\n+++ y\n@@ -1 +1 @@\n-value = 1\n+value = 2\n"
+    b = "--- x\n+++ y\n@@ -1 +1 @@\n-value = 1\n+value = 3\n"
+    assert patch_fingerprint(a) != patch_fingerprint(b)
+
+
+def test_a_round_with_no_measurement_and_no_refusal_is_representable():
+    """This text goes into the next round's prompt; a bookkeeping gap should
+    not end a run."""
+    assert "no measurement" in Round(2, net_ir=None).summarise(1000)

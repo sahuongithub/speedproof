@@ -176,3 +176,22 @@ response has been to build better agents rather than better instruments.
 Counting instructions costs nothing and settles it. The reason nobody does it is
 not that it is hard — it is that determinism removes the wiggle room, and a
 number that cannot move in your favour is a number you have to live with.
+
+## A bug that only appeared on someone else's machine
+
+The duplicate-attempt check hashed the whole unified diff, headers included. A
+unified diff names each file with a path and a modification time, so two
+byte-identical changes written a moment apart hash differently and the check
+silently stops working.
+
+It passed on this laptop for the whole build, because both writes landed inside
+the same timestamp granularity. It failed the first time continuous integration
+ran it on a slower machine. The consequence in production would have been an
+agent allowed to resubmit the same patch, paying a Valgrind run each time to
+learn what was already known.
+
+Two things about it are worth keeping. The failure was in the direction that
+does not announce itself — the check did not error, it just stopped catching
+anything, which is the same shape as every other serious fault in this project.
+And the only reason it was found is that the suite runs somewhere other than
+where it was written.
