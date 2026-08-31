@@ -1,0 +1,75 @@
+{
+ "arms": {
+  "one_shot": {
+   "mean_expert_fraction": 2.0,
+   "reached_parity": 1,
+   "scored": 1,
+   "tasks": [
+    {
+     "task": "packaging_bce44a178e",
+     "repo": "pypa/packaging",
+     "base_ir": 33757056,
+     "human_ir": 32740814,
+     "arm_ir": 29372743,
+     "expert_fraction": 2.0,
+     "rejected": null
+    }
+   ]
+  },
+  "one_shot_profile": {
+   "mean_expert_fraction": 1.6521055581273005,
+   "reached_parity": 1,
+   "scored": 1,
+   "tasks": [
+    {
+     "task": "packaging_bce44a178e",
+     "repo": "pypa/packaging",
+     "base_ir": 33757056,
+     "human_ir": 32740814,
+     "arm_ir": 32094655,
+     "expert_fraction": 1.6521055581273005,
+     "rejected": null
+    }
+   ]
+  },
+  "agent": {
+   "mean_expert_fraction": 2.0,
+   "reached_parity": 1,
+   "scored": 1,
+   "tasks": [
+    {
+     "task": "packaging_bce44a178e",
+     "repo": "pypa/packaging",
+     "base_ir": 33757056,
+     "human_ir": 32740814,
+     "arm_ir": 28986013,
+     "expert_fraction": 2.0,
+     "rejected": null
+    }
+   ]
+  }
+ },
+ "dropped": {},
+ "contrasts": [
+  {
+   "left": "agent",
+   "right": "one_shot",
+   "difference": 0.0,
+   "standard_error": null,
+   "tasks": 1,
+   "repositories": 1,
+   "minimum_detectable_effect": null,
+   "resolvable": false
+  },
+  {
+   "left": "one_shot_profile",
+   "right": "one_shot",
+   "difference": -0.34789444187269947,
+   "standard_error": null,
+   "tasks": 1,
+   "repositories": 1,
+   "minimum_detectable_effect": null,
+   "resolvable": false
+  }
+ ]
+}

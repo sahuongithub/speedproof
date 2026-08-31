@@ -1,0 +1,51 @@
+{
+ "schema": "speedproof-trajectory/1",
+ "task": {
+  "task_id": "packaging_bce44a178e",
+  "repo": "pypa/packaging",
+  "base_commit": "e7f0351352783a8a2f17f8fe15d8504f604468eb",
+  "workload": "benchmarks.markers.TimeMarkerSuite.time_constructor",
+  "baseline_ir": 33757056,
+  "expert_ir": 32740814
+ },
+ "arm": "one_shot_profile",
+ "config": {
+  "rounds": 3,
+  "repetitions": 2
+ },
+ "started_at": "2026-08-31T01:19:33.126911+00:00",
+ "finished_at": "2026-08-31T01:19:33.126935+00:00",
+ "rounds": [
+  {
+   "round": 1,
+   "prompt": "You are making one Python file do less work, without changing what it computes.\n\nIt is measured by counting the machine instructions it retires. The count is\nexact and reproduces to the instruction, so there is no noise to exploit and no\nvalue in resubmitting an unchanged attempt.\n\nThe harness profiled it. These counts are exact:\n\n```\nlines by execution count\n  4,119 x  _tokenizer.py:124      assert self.next_token is None, (\n  4,119 x  _tokenizer.py:127      assert name in self.rules, f\"Unknown token name: {name!r}\"\n  4,119 x  _tokenizer.py:129      expression = self.rules[name]\n  4,119 x  _tokenizer.py:131      match = expression.match(self.source, self.position)\n  4,119 x  _tokenizer.py:132      if match is None:\n  2,415 x  _tokenizer.py:133      return False\n  1,704 x  _tokenizer.py:134      if not peek:\n  1,704 x  _tokenizer.py:136      return True\n  1,692 x  _tokenizer.py:135      self.next_token = Token(name, match[0], self.position)\n  1,692 x  _tokenizer.py:149      token = sel\n\u2026 6,000 characters elided \u2026\n             f\"Expected matching {close_token} for {open_token}, after {around}\",\n                span_start=open_position,\n            )\n\n        self.read()\n\n```\n\nWhat the harness checks, so that working around it is not possible:\n\n* The results must be identical. They are compared by hashing a canonical\n  encoding of what the code returns, computed outside the process you affect.\n* Work moved into module import is not a saving. The cost of importing is\n  measured separately and counted against you.\n* Caching between calls is not a saving. Each measurement runs a fresh process.\n* Deferring work is not a saving. The result is fully materialised inside the\n  measured region.\n* Make the code generally faster rather than faster on this particular input.\n  A fast path that only fires on the measured case is not an optimisation.\n\nReply with one or more edits in exactly this form, and nothing else:\n\n<<<<<<< SEARCH\nthe exact lines to replace\n=======\nwhat to replace them with\n>>>>>>> REPLACE\n",
+   "reply": "<<<<<<< SEARCH\nimport contextlib\nimport re\nfrom dataclasses import dataclass\nfrom typing import TYPE_CHECKING, NoReturn\n=======\nimport contextlib\nimport re\nfrom typing import TYPE_CHECKING, NamedTuple, NoReturn\n>>>>>>> REPLACE\n\n<<<<<<< SEARCH\n@dataclass\nclass Token:\n    name: str\n    text: str\n    position: int\n=======\nclass Token(NamedTuple):\n    name: str\n    text: str\n    position: int\n>>>>>>> REPLACE\n\n<<<<<<< SEARCH\n        self.source = source\n        self.rules = rules\n        self.next_token: Token | None = None\n        self.position = 0\n\n    def consume(self, name: str) -> None:\n        \"\"\"Move beyond provided token name, if at current position.\"\"\"\n        if self.check(name):\n            self.read()\n\n    def check(self, name: str, *, peek: bool = False) -> bool:\n        \"\"\"Check whether the next token has the provided name.\n\n        By default, if the check succeeds, the token *must* be read before\n        another check. If `peek` is set to `True`, the token is not loaded and\n\n\u2026 1,675 characters elided \u2026\nion)!r}\"\n        )\n        try:\n            expression = self.rules[name]\n        except KeyError:\n            raise AssertionError(f\"Unknown token name: {name!r}\") from None\n\n        match = expression.match(self.source, self.position)\n        if match is None:\n            return False\n        if not peek:\n            self.next_name = name\n            self.next_match = match\n        return True\n>>>>>>> REPLACE\n\n<<<<<<< SEARCH\n    def read(self) -> Token:\n        \"\"\"Consume the next token and return it.\"\"\"\n        token = self.next_token\n        assert token is not None\n\n        self.position += len(token.text)\n        self.next_token = None\n\n        return token\n=======\n    def read(self) -> Token:\n        \"\"\"Consume the next token and return it.\"\"\"\n        match = self.next_match\n        assert match is not None\n\n        position = self.position\n        self.next_match = None\n        self.position = match.end()\n\n        return Token(self.next_name, match[0], position)\n>>>>>>> REPLACE",
+   "edits_proposed": 0,
+   "patch": "diff -u -r --new-file /Users/sahu/speedproof/corpus/work/packaging_bce44a178e/base/src/packaging/_tokenizer.py /Users/sahu/.speedproof/workspaces/agent-p2k8wiqa/src/packaging/_tokenizer.py\n--- /Users/sahu/speedproof/corpus/work/packaging_bce44a178e/base/src/packaging/_tokenizer.py\t2026-08-31 06:14:21\n+++ /Users/sahu/.speedproof/workspaces/agent-p2k8wiqa/src/packaging/_tokenizer.py\t2026-08-31 06:23:32\n@@ -2,8 +2,7 @@\n \n import contextlib\n import re\n-from dataclasses import dataclass\n-from typing import TYPE_CHECKING, NoReturn\n+from typing import TYPE_CHECKING, NamedTuple, NoReturn\n \n from .specifiers import Specifier\n \n@@ -11,8 +10,7 @@\n     from collections.abc import Generator, Mapping\n \n \n-@dataclass\n-class Token:\n+class Token(NamedTuple):\n     name: str\n     text: str\n     position: int\n@@ -106,13 +104,19 @@\n     ) -> None:\n         self.source = source\n         self.rules = rules\n-        self.next_token: Token | None = None\n+        # The pending token is held as the match that produced it. Most tokens\n+        # are only stepped over, never looked at, and holding the match means\n+        # those never have to be built into a Token at all.\n+        self.next_match: re.Match[str] | None = None\n+        self.next_name = \"\"\n         self.position = 0\n \n     def consume(self, name: str) -> None:\n         \"\"\"Move beyond provided token name, if at current position.\"\"\"\n         if self.check(name):\n-            self.read()\n+            match = self.next_match\n+            self.next_match = None\n+            self.position = match.end()  # type: ignore[union-attr]\n \n     def check(self, name: str, *, peek: bool = False) -> bool:\n         \"\"\"Check whether the next token has the provided name.\n@@ -121,18 +125,21 @@\n         another check. If `peek` is set to `True`, the token is not loaded and\n         would need to be checked again.\n         \"\"\"\n-        assert self.next_token is None, (\n-            f\"Cannot check for {name!r}, already have {self.next_token!r}\"\n+        assert self.next_match is None, (\n+            f\"Cannot check for {name!r}, already have \"\n+            f\"{Token(self.next_name, self.next_match[0], self.position)!r}\"\n         )\n-        assert name in self.rules, f\"Unknown token name: {name!r}\"\n+        try:\n+            expression = self.rules[name]\n+        except KeyError:\n+            raise AssertionError(f\"Unknown token name: {name!r}\") from None\n \n-        expression = self.rules[name]\n-\n         match = expression.match(self.source, self.position)\n         if match is None:\n             return False\n         if not peek:\n-            self.next_token = Token(name, match[0], self.position)\n+            self.next_name = name\n+            self.next_match = match\n         return True\n \n     def expect(self, name: str, *, expected: str) -> Token:\n@@ -146,13 +153,14 @@\n \n     def read(self) -> Token:\n         \"\"\"Consume the next token and return it.\"\"\"\n-        token = self.next_token\n-        assert token is not None\n+        match = self.next_match\n+        assert match is not None\n \n-        self.position += len(token.text)\n-        self.next_token = None\n+        position = self.position\n+        self.next_match = None\n+        self.position = match.end()\n \n-        return token\n+        return Token(self.next_name, match[0], position)\n \n     def raise_syntax_error(\n         self,\n",
+   "oracle": {
+    "net_ir": 32094655,
+    "import_cost": 391336428,
+    "equivalent": true,
+    "rejected": null
+   },
+   "shown": {
+    "profile": false,
+    "history": false
+   },
+   "gen_ai.usage.input_tokens": null,
+   "gen_ai.usage.output_tokens": null,
+   "kept": true
+  }
+ ],
+ "selection": {
+  "rule": "lowest measured instruction count among rounds whose answers matched the base tree",
+  "selected_round": 1,
+  "final_round": 1,
+  "stopped_because": "one attempt, by design"
+ },
+ "cost": {
+  "model_calls": 1,
+  "measurements": 1,
+  "rounds": 1
+ }
+}

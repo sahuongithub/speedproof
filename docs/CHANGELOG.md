@@ -109,6 +109,42 @@ Each cheat is a patch that a harness measuring only elapsed time would accept.
 | First corpus run | Run the pipeline end to end across two repositories. | xdsl: 0 of 25 validated, and only 1 of 25 measurable at all — nineteen tasks predate any callable benchmark. packaging: 1 of 6 validated, 3 of 6 measurable. The validated task reproduces `perf: add __slots__ to token classes` at **+3.01%**, deterministic, outputs unchanged. | Pipeline kept; xdsl retired as a source. The difference is not the pipeline but the repositories: a project can have benchmarks and have optimisation commits without the two ever meeting, which is what the earlier survey could not detect. |
 | Paired baseline alone | Subtract a baseline carrying the same imports, so the measurement is of the benchmarked call. | Correct, and a hiding place: a module precomputing its answer at import had both sides carry the cost, cancelling exactly. Measured, that reads as a **200x improvement** — net Ir 1,334,809 to 6,585 — while the program does *more* total work, 1,827,626 to 1,885,271. | Kept, with the hole closed. Every measurement now records the module's import cost, and a saving is credited only when the whole program does less work. A cheaper import still counts; an unknown import cost returns unknown rather than assuming the work stayed put. |
 
+## The first end-to-end result
+
+One task, three arms, on a real optimisation from pypa/packaging — the commit
+`perf: add __slots__ to token classes`, which a maintainer made believing it was
+faster, and which it is.
+
+| | instructions | work removed |
+| --- | ---: | ---: |
+| the code as it stood | 33,757,056 | — |
+| **the maintainer's patch** | 32,740,814 | **3.01%** |
+| one prompt, no profile | 29,372,743 | 12.99% |
+| one prompt, with the profile | 32,094,655 | 4.92% |
+| **the loop, three rounds** | **28,986,013** | **14.13%** |
+
+Every one of these passed the correctness gate: identical answers, work that
+went away rather than moving into the import.
+
+Three things in it are worth more than the headline.
+
+**The loop found its best answer in round one and got worse afterwards** —
+28,986,013 then 29,136,511 then 29,086,154 — so the controller kept round one
+and stopped on patience. The rule about keeping the best round rather than the
+last was taken from a published turn-by-turn table; this is it earning its place
+on a real run.
+
+**The loop tied the single prompt.** Both removed about the same work, and at one
+task the report refuses to claim a difference: the smallest difference this
+corpus could resolve is larger than the one observed. That is not evidence the
+loop does nothing. It is evidence that one task cannot answer the question, which
+is why the number is reported that way rather than as a win.
+
+**Showing the profile made the one-shot arm worse**, 12.99% down to 4.92%. A
+single observation, so nothing is claimed from it — but it is the same direction
+as the published ablation that found profiler access alone scoring below the
+plain baseline, and it is the reason the arms were separated in the first place.
+
 ## The main failure mode
 
 Not the agent's — the instrument's.

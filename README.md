@@ -147,6 +147,28 @@ results worse:
 - **The best round is kept, not the last.** Published turn-by-turn figures end on
   a regression.
 
+## The first end-to-end result
+
+One task, three arms, on `perf: add __slots__ to token classes` from
+pypa/packaging:
+
+| | instructions | work removed |
+| --- | ---: | ---: |
+| the code as it stood | 33,757,056 | — |
+| **the maintainer's patch** | 32,740,814 | **3.01%** |
+| one prompt | 29,372,743 | 12.99% |
+| one prompt, with the profile | 32,094,655 | 4.92% |
+| **the loop, three rounds** | **28,986,013** | **14.13%** |
+
+All three passed the correctness gate. The loop found its best answer in round
+one and got worse in rounds two and three, so the controller kept round one —
+the best-not-last rule earning its place on a real run.
+
+At one task, the loop and the single prompt tie, and the report says so: the
+smallest difference this corpus could resolve is larger than the one observed.
+That is not evidence the loop does nothing; it is evidence that one task cannot
+answer the question.
+
 ## How a result is scored
 
 Against the maintainer who did the work first:
